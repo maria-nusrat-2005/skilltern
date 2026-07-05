@@ -1,0 +1,1 @@
+ALTER TABLE public.internships ADD COLUMN IF NOT EXISTS company_domain TEXT;

@@ -41,13 +41,10 @@ const studentNav = [
 
 const companyNav = [
   { to: "/company", label: "Recruiter Dashboard", icon: LayoutDashboard },
-  { to: "/companies", label: "Companies List", icon: Building2 },
-  { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
 const adminNav = [
   { to: "/admin", label: "Admin Panel", icon: LayoutDashboard },
-  { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -132,7 +129,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Mobile bottom nav */}
       <nav className={cn(
         "fixed bottom-0 left-0 right-0 z-30 grid border-t border-border bg-background/95 backdrop-blur lg:hidden",
-        role === "student" ? "grid-cols-5" : role === "company" ? "grid-cols-3" : "grid-cols-2"
+        role === "student" ? "grid-cols-5" : role === "company" ? "grid-cols-3" : "grid-cols-1"
       )}>
         {nav.slice(0, 5).map((item) => {
           const active = pathname === item.to || pathname.startsWith(item.to + "/");

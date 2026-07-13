@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -19,11 +19,20 @@ import {
   Github,
   Award,
   Globe,
-  Building
+  Building,
+  Building2,
+  User,
+  Star,
+  ThumbsUp,
+  ThumbsDown,
+  Wallet,
+  Settings
 } from "lucide-react";
-import { getProfileData } from "@/lib/profile.functions";
+import { getProfileData, updateProfile } from "@/lib/profile.functions";
 import { listCompanyInternships, createInternship, deleteInternship } from "@/lib/internships.functions";
 import { listCompanyApplications, updateApplicationStatus } from "@/lib/applications.functions";
+import { getCompany } from "@/lib/companies.functions";
+import { CompanyLogo } from "@/components/company-logo";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +74,7 @@ function CompanyDashboardPage() {
   const qc = useQueryClient();
   const [isPostOpen, setIsPostOpen] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState<any | null>(null);
+  const [activeTab, setActiveTab] = useState("applicants");
 
   // Form State
   const [title, setTitle] = useState("");
@@ -87,6 +97,53 @@ function CompanyDashboardPage() {
 
   const companyName = profileQ.data?.profile?.company_name ?? "Your Company";
   const companyDomain = profileQ.data?.profile?.company_domain ?? "";
+
+  // Company Profile Form State
+  const [profileForm, setProfileForm] = useState({
+    full_name: "",
+    location: "",
+    phone: "",
+    linkedin_url: "",
+    portfolio_url: "",
+    company_name: "",
+    company_domain: "",
+  });
+
+  // Sync profile data when loaded
+  useEffect(() => {
+    if (profileQ.data?.profile) {
+      const p = profileQ.data.profile;
+      setProfileForm({
+        full_name: p.full_name ?? "",
+        location: p.location ?? "",
+        phone: p.phone ?? "",
+        linkedin_url: p.linkedin_url ?? "",
+        portfolio_url: p.portfolio_url ?? "",
+        company_name: p.company_name ?? "",
+        company_domain: p.company_domain ?? "",
+      });
+    }
+  }, [profileQ.data]);
+
+  // Profile Save Mutation
+  const saveProfileM = useMutation({
+    mutationFn: () => updateProfile({ data: profileForm }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["profile"] });
+      qc.invalidateQueries({ queryKey: ["company", companyName] });
+      toast.success("Company profile updated successfully!");
+    },
+    onError: (e) => {
+      toast.error(e instanceof Error ? e.message : "Failed to save profile");
+    },
+  });
+
+  // Public Preview Query
+  const companyPublicQ = useQuery({
+    queryKey: ["company", companyName],
+    queryFn: () => getCompany({ data: { company: companyName } }),
+    enabled: !!companyName && companyName !== "Your Company",
+  });
 
   // Mutations
   const createMutation = useMutation({
@@ -327,13 +384,19 @@ function CompanyDashboardPage() {
       </div>
 
       {/* Main Content Tabs */}
-      <Tabs defaultValue="applicants" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="applicants" className="gap-2">
             <Users className="h-4 w-4" /> Applicants
           </TabsTrigger>
           <TabsTrigger value="postings" className="gap-2">
             <Briefcase className="h-4 w-4" /> Job Listings
+          </TabsTrigger>
+          <TabsTrigger value="profile" className="gap-2">
+            <Building2 className="h-4 w-4" /> Company Profile
+          </TabsTrigger>
+          <TabsTrigger value="preview" className="gap-2">
+            <Eye className="h-4 w-4" /> View Public Page
           </TabsTrigger>
         </TabsList>
 
@@ -467,6 +530,289 @@ function CompanyDashboardPage() {
               </div>
             )}
           </Card>
+        </TabsContent>
+
+        <TabsContent value="profile">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card className="p-6 shadow-sm">
+              <h2 className="flex items-center gap-2 font-display text-xl font-bold border-b border-border pb-4">
+                <Building2 className="h-5 w-5 text-primary" /> Company Details
+              </h2>
+              <div className="mt-5 space-y-4">
+                <div>
+                  <Label htmlFor="profile-company-name" className="mb-1.5 block">Company Name</Label>
+                  <Input
+                    id="profile-company-name"
+                    value={profileForm.company_name}
+                    onChange={(e) => setProfileForm({ ...profileForm, company_name: e.target.value })}
+                    placeholder="e.g. Acme Corporation"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Label htmlFor="profile-company-domain">Company Website / Domain</Label>
+                    <span className="text-[10px] text-muted-foreground">Logo fetched automatically</span>
+                  </div>
+                  <Input
+                    id="profile-company-domain"
+                    value={profileForm.company_domain}
+                    onChange={(e) => setProfileForm({ ...profileForm, company_domain: e.target.value })}
+                    placeholder="e.g. acme.com (no https://)"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="profile-location" className="mb-1.5 block">Location</Label>
+                  <Input
+                    id="profile-location"
+                    value={profileForm.location}
+                    onChange={(e) => setProfileForm({ ...profileForm, location: e.target.value })}
+                    placeholder="e.g. Dhaka, Bangladesh"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="profile-portfolio-url" className="mb-1.5 block">Full Website URL</Label>
+                  <Input
+                    id="profile-portfolio-url"
+                    value={profileForm.portfolio_url}
+                    onChange={(e) => setProfileForm({ ...profileForm, portfolio_url: e.target.value })}
+                    placeholder="e.g. https://www.acme.com"
+                  />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-6 shadow-sm">
+              <h2 className="flex items-center gap-2 font-display text-xl font-bold border-b border-border pb-4">
+                <User className="h-5 w-5 text-primary" /> Recruiter Details & Socials
+              </h2>
+              <div className="mt-5 space-y-4">
+                <div>
+                  <Label htmlFor="profile-full-name" className="mb-1.5 block">Recruiter Name</Label>
+                  <Input
+                    id="profile-full-name"
+                    value={profileForm.full_name}
+                    onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
+                    placeholder="e.g. Irfan Shazid"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="profile-phone" className="mb-1.5 block">Contact Phone</Label>
+                  <Input
+                    id="profile-phone"
+                    value={profileForm.phone}
+                    onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                    placeholder="e.g. +880 1712-345678"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="profile-linkedin-url" className="mb-1.5 block">Company LinkedIn URL</Label>
+                  <Input
+                    id="profile-linkedin-url"
+                    value={profileForm.linkedin_url}
+                    onChange={(e) => setProfileForm({ ...profileForm, linkedin_url: e.target.value })}
+                    placeholder="e.g. https://linkedin.com/company/acme"
+                  />
+                </div>
+              </div>
+              <div className="mt-8 pt-4 border-t border-border flex justify-end">
+                <Button onClick={() => saveProfileM.mutate()} disabled={saveProfileM.isPending}>
+                  {saveProfileM.isPending ? "Saving..." : "Save Profile Details"}
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="preview">
+          {companyName === "Your Company" || !companyName.trim() ? (
+            <Card className="p-8 text-center shadow-sm max-w-xl mx-auto mt-6">
+              <Settings className="h-12 w-12 text-muted-foreground mx-auto opacity-40 mb-4" />
+              <h3 className="font-bold font-display text-lg">Set up your company profile</h3>
+              <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
+                Before you can preview your public profile page, please set your company name in the Company Profile tab.
+              </p>
+              <Button onClick={() => setActiveTab("profile")} className="mt-5 gap-1.5">
+                Go to Company Profile
+              </Button>
+            </Card>
+          ) : companyPublicQ.isLoading ? (
+            <div className="space-y-4 py-8 text-center text-sm text-muted-foreground">
+              <span className="animate-pulse">Fetching public profile details...</span>
+            </div>
+          ) : !companyPublicQ.data || companyPublicQ.data.internships.length === 0 ? (
+            <Card className="p-8 text-center shadow-sm max-w-xl mx-auto mt-6">
+              <Building2 className="h-12 w-12 text-muted-foreground mx-auto opacity-40 mb-4" />
+              <h3 className="font-bold font-display text-lg">Your profile is not yet public</h3>
+              <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
+                Company profiles are only visible to the public once you have posted at least one active internship listing.
+              </p>
+              <Button
+                onClick={() => {
+                  setActiveTab("postings");
+                  setIsPostOpen(true);
+                }}
+                className="mt-5 gap-1.5"
+              >
+                <Plus className="h-4 w-4" /> Post Your First Internship
+              </Button>
+            </Card>
+          ) : (() => {
+            const data = companyPublicQ.data;
+            const maxBreakdown = Math.max(1, ...data.ratingBreakdown.map((b) => b.count));
+            return (
+              <div className="space-y-6">
+                {/* Header preview card */}
+                <Card className="p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <CompanyLogo domain={data.companyDomain} name={data.company} size={56} />
+                      <div>
+                        <h1 className="font-display text-2xl font-bold tracking-tight">{data.company}</h1>
+                        {data.companyType && (
+                          <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <Building className="h-4 w-4 text-primary" />
+                            {data.companyType}
+                          </p>
+                        )}
+                        {profileForm.location && (
+                          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <MapPin className="h-3.5 w-3.5" />
+                            {profileForm.location}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="font-display text-3xl font-bold">
+                          {data.avgRating?.toFixed(1) ?? "—"}
+                        </span>
+                        {data.avgRating !== null && (
+                          <span className="flex items-center gap-0.5">
+                            {[1, 2, 3, 4, 5].map((i) => (
+                              <Star
+                                key={i}
+                                className={
+                                  i <= Math.round(data.avgRating || 0)
+                                    ? "h-4 w-4 fill-accent text-accent"
+                                    : "h-4 w-4 text-muted-foreground/30"
+                                }
+                              />
+                            ))}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{data.reviewCount} reviews</p>
+                    </div>
+                  </div>
+                </Card>
+
+                <div className="grid gap-6 lg:grid-cols-3">
+                  <div className="space-y-6 lg:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <h2 className="font-display text-lg font-semibold">Intern reviews</h2>
+                    </div>
+
+                    {data.reviews.length === 0 ? (
+                      <Card className="p-8 text-center text-sm text-muted-foreground">
+                        No student reviews yet. Once students apply and review their internship, they will show up here.
+                      </Card>
+                    ) : (
+                      <div className="space-y-4">
+                        {data.reviews.map((r) => (
+                          <Card key={r.id} className="p-5">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <span className="flex items-center gap-0.5">
+                                  {[1, 2, 3, 4, 5].map((i) => (
+                                    <Star
+                                      key={i}
+                                      className={
+                                        i <= r.rating
+                                          ? "h-3.5 w-3.5 fill-accent text-accent"
+                                          : "h-3.5 w-3.5 text-muted-foreground/30"
+                                      }
+                                    />
+                                  ))}
+                                </span>
+                                {r.title && <h3 className="mt-1.5 font-display font-semibold">{r.title}</h3>}
+                                <p className="text-xs text-muted-foreground">
+                                  {r.role ? `${r.role} · ` : ""}
+                                  {r.author_label ?? "Anonymous"}
+                                </p>
+                              </div>
+                            </div>
+                            {r.body && <p className="mt-2 text-sm text-muted-foreground">{r.body}</p>}
+                            {(r.pros || r.cons) && (
+                              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                {r.pros && (
+                                  <p className="flex items-start gap-1.5 text-xs">
+                                    <ThumbsUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                                    {r.pros}
+                                  </p>
+                                )}
+                                {r.cons && (
+                                  <p className="flex items-start gap-1.5 text-xs">
+                                    <ThumbsDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+                                    {r.cons}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-6">
+                    <Card className="p-6">
+                      <h2 className="font-display font-semibold">Rating breakdown</h2>
+                      <div className="mt-3 space-y-2">
+                        {data.ratingBreakdown.map((b) => (
+                          <div key={b.star} className="flex items-center gap-2 text-xs">
+                            <span className="w-3 text-muted-foreground">{b.star}</span>
+                            <Star className="h-3 w-3 fill-accent text-accent" />
+                            <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                              <div
+                                className="h-full rounded-full bg-accent"
+                                style={{ width: `${(b.count / maxBreakdown) * 100}%` }}
+                              />
+                            </div>
+                            <span className="w-5 text-right text-muted-foreground">{b.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+
+                    <Card className="p-6">
+                      <h2 className="font-display font-semibold">Open roles ({data.internships.length})</h2>
+                      <div className="mt-3 space-y-2">
+                        {data.internships.map((j) => (
+                          <div
+                            key={j.id}
+                            className="block rounded-lg border border-border p-3"
+                          >
+                            <p className="text-sm font-medium">{j.title}</p>
+                            <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" /> {j.location}
+                              </span>
+                              {j.salary && (
+                                <span className="flex items-center gap-1">
+                                  <Wallet className="h-3 w-3" /> {j.salary}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </TabsContent>
       </Tabs>
 

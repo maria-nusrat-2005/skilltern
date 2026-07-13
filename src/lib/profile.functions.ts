@@ -38,12 +38,23 @@ type ProfileInput = {
   linkedin_url?: string | null;
   github_url?: string | null;
   portfolio_url?: string | null;
+  company_name?: string | null;
+  company_domain?: string | null;
 };
 
 function completion(p: ProfileInput): number {
-  const fields = [p.full_name, p.location, p.phone, p.linkedin_url, p.github_url, p.portfolio_url];
+  const fields = [
+    p.full_name,
+    p.location,
+    p.phone,
+    p.linkedin_url,
+    p.github_url,
+    p.portfolio_url,
+    p.company_name,
+    p.company_domain,
+  ].filter((f) => f !== undefined);
   const filled = fields.filter((f) => f && String(f).trim().length > 0).length;
-  return Math.round((filled / fields.length) * 100);
+  return fields.length > 0 ? Math.round((filled / fields.length) * 100) : 0;
 }
 
 export const updateProfile = createServerFn({ method: "POST" })

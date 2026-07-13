@@ -54,7 +54,7 @@ function AdminConsolePage() {
   // Reuse listInternships with large page size for admin search
   const jobsQ = useQuery({
     queryKey: ["admin-jobs", jobSearch],
-    queryFn: () => listInternships({ search: jobSearch, pageSize: 50 }),
+    queryFn: () => listInternships({ data: { search: jobSearch, pageSize: 50 } }),
   });
 
   // Mutations

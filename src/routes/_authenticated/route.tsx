@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_authenticated")({
     } else if (role === "company") {
       // If company recruiter tries to access student routes or admin routes, redirect to /company
       const studentRoutes = [
-        "/dashboard", "/matches", "/bookmarks", "/resume", "/assessments", "/applications", "/calendar", "/insights", "/assistant"
+        "/dashboard", "/matches", "/bookmarks", "/resume", "/assessments", "/applications", "/calendar", "/insights", "/assistant", "/profile", "/companies"
       ];
       const isStudentRoute = studentRoutes.some(route => location.pathname === route || location.pathname.startsWith(route + "/"));
       if (isStudentRoute || location.pathname.startsWith("/admin") || location.pathname === "/onboarding") {

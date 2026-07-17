@@ -519,7 +519,7 @@ function InternshipDetail() {
             </div>
             <Button
               className="mt-3 w-full gap-2"
-              variant="secondary"
+              variant="mustard"
               disabled={kitM.isPending}
               onClick={() => kitM.mutate()}
             >

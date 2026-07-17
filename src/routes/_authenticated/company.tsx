@@ -1820,7 +1820,7 @@ function CompanyDashboardPage() {
                   </div>
 
                   <div className="pt-4 border-t flex justify-end">
-                    <Button type="submit" disabled={isSubmittingVerification} className="gap-2">
+                    <Button type="submit" disabled={isSubmittingVerification} variant="mustard" className="gap-2">
                       {isSubmittingVerification ? "Uploading Documents..." : "Submit Verification Documents"}
                     </Button>
                   </div>

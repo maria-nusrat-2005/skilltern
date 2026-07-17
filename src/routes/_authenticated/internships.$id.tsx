@@ -22,6 +22,7 @@ import {
   FileText,
   Award,
   Mail,
+  ExternalLink,
 } from "lucide-react";
 import { useCompare } from "@/hooks/use-compare";
 import { getInternship, parseInternshipMetadata, incrementInternshipViews } from "@/lib/internships.functions";
@@ -78,6 +79,32 @@ function InternshipDetail() {
   const [uploading, setUploading] = useState(false);
 
   const q = useQuery({ queryKey: ["internship", id], queryFn: () => getInternship({ data: { id } }) });
+  const myAppQ = useQuery({
+    queryKey: ["my-application", id, user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("applications")
+        .select("*")
+        .eq("internship_id", id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const myApp = myAppQ.data;
+  let interviewData: any = null;
+  if (myApp?.notes) {
+    try {
+      const parsedNotes = JSON.parse(myApp.notes);
+      if (parsedNotes && typeof parsedNotes === "object" && parsedNotes.interview) {
+        interviewData = parsedNotes.interview;
+      }
+    } catch {}
+  }
   const similarQ = useQuery({
     queryKey: ["similar", id],
     queryFn: () => getSimilarInternships({ data: { id, limit: 4 } }),
@@ -231,6 +258,53 @@ function InternshipDetail() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
+          {myApp?.status === "interviewing" && interviewData && (
+            <Card className="mb-6 p-5 border-violet-500/20 bg-violet-500/5 dark:bg-violet-500/10 text-foreground space-y-4 shadow-sm relative overflow-hidden">
+              <div className="absolute right-0 top-0 h-24 w-24 bg-gradient-to-br from-violet-500/10 to-transparent rounded-bl-full" />
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-violet-500/15 rounded-lg text-violet-600 dark:text-violet-400">
+                  <Clock className="h-5 w-5" />
+                </span>
+                <div>
+                  <h3 className="font-display font-bold text-base text-violet-950 dark:text-violet-100">Congratulations! You've been scheduled for an interview</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Please review the details and preparation guidelines below.</p>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3 bg-background/50 backdrop-blur-sm p-3.5 rounded-xl border text-xs">
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Date</span>
+                  <span className="font-bold text-foreground">{interviewData.date || "To be confirmed"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Time</span>
+                  <span className="font-bold text-foreground">{interviewData.time || "To be confirmed"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Meeting URL</span>
+                  {interviewData.link ? (
+                    <a
+                      href={interviewData.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      Join Meeting <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  ) : (
+                    <span className="font-bold text-muted-foreground italic">Link pending</span>
+                  )}
+                </div>
+              </div>
+              {interviewData.instructions && (
+                <div className="text-xs space-y-1">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Recruiter Instructions</span>
+                  <p className="p-3 bg-background/35 rounded-lg border border-border leading-relaxed text-muted-foreground whitespace-pre-wrap font-semibold">
+                    {interviewData.instructions}
+                  </p>
+                </div>
+              )}
+            </Card>
+          )}
           <Card className="p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-4">

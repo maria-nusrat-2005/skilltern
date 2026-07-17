@@ -148,6 +148,13 @@ function CompanyDashboardPage() {
   const [isNotesSaving, setIsNotesSaving] = useState(false);
   const [cvPreviewMode, setCvPreviewMode] = useState<"preview" | "download">("preview");
 
+  // Interview Scheduler states
+  const [interviewDate, setInterviewDate] = useState("");
+  const [interviewTime, setInterviewTime] = useState("");
+  const [interviewLink, setInterviewLink] = useState("");
+  const [interviewInstructions, setInterviewInstructions] = useState("");
+  const [isInterviewSaving, setIsInterviewSaving] = useState(false);
+
   // Candidate comparison state
   const [comparedApplicantIds, setComparedApplicantIds] = useState<string[]>([]);
 
@@ -428,8 +435,15 @@ function CompanyDashboardPage() {
 
   const handlePostSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Enforce Company Verification Lock
+    const targetStatus = !isVerified ? "draft" : jobStatus;
+    if (!isVerified && jobStatus === "published") {
+      toast.error("Company verification is required to publish active listings. Saved as Draft.");
+    }
+
     const serializedDesc = serializeInternshipDescription(description, {
-      status: jobStatus,
+      status: targetStatus,
       required_cgpa: jobCgpa ? parseFloat(jobCgpa) : null,
       deadline: jobDeadline || null,
       views: editingJob ? (parseInternshipMetadata(editingJob.description).views || 0) : 0,
@@ -618,15 +632,29 @@ function CompanyDashboardPage() {
       
       // Parse custom notes and bookmark settings from applications.notes (JSON string)
       let notesText = selectedApplicant.notes ?? "";
+      let intDate = "";
+      let intTime = "";
+      let intLink = "";
+      let intInstr = "";
       try {
         const parsedNotes = JSON.parse(selectedApplicant.notes);
         if (parsedNotes && typeof parsedNotes === "object") {
           notesText = parsedNotes.recruiter_notes ?? "";
+          if (parsedNotes.interview) {
+            intDate = parsedNotes.interview.date ?? "";
+            intTime = parsedNotes.interview.time ?? "";
+            intLink = parsedNotes.interview.link ?? "";
+            intInstr = parsedNotes.interview.instructions ?? "";
+          }
         }
       } catch (e) {
         // Fallback if notes is not JSON (legacy format)
       }
       setRecruiterNotesInput(notesText);
+      setInterviewDate(intDate);
+      setInterviewTime(intTime);
+      setInterviewLink(intLink);
+      setInterviewInstructions(intInstr);
     }
   }, [selectedApplicant]);
 
@@ -662,6 +690,49 @@ function CompanyDashboardPage() {
       toast.error("Failed to save private notes: " + e.message);
     } finally {
       setIsNotesSaving(false);
+    }
+  };
+
+  // Save interview schedule
+  const saveInterviewSchedule = async () => {
+    if (!selectedApplicant) return;
+    setIsInterviewSaving(true);
+
+    let existingMeta: any = {};
+    try {
+      existingMeta = JSON.parse(selectedApplicant.notes) || {};
+    } catch {}
+
+    const updatedMeta = {
+      ...existingMeta,
+      interview: {
+        date: interviewDate,
+        time: interviewTime,
+        link: interviewLink,
+        instructions: interviewInstructions,
+      },
+    };
+
+    try {
+      const { error } = await supabase
+        .from("applications")
+        .update({
+          notes: JSON.stringify(updatedMeta),
+          status: "interviewing"
+        })
+        .eq("id", selectedApplicant.id);
+
+      if (error) throw error;
+
+      selectedApplicant.notes = JSON.stringify(updatedMeta);
+      selectedApplicant.status = "interviewing";
+      qc.invalidateQueries({ queryKey: ["company-applications"] });
+      toast.success("Interview scheduled successfully! Application moved to 'Interviewing'.");
+      loadApplicantMatchDetail(selectedApplicant.id);
+    } catch (e: any) {
+      toast.error("Failed to save interview schedule: " + e.message);
+    } finally {
+      setIsInterviewSaving(false);
     }
   };
 
@@ -725,6 +796,57 @@ function CompanyDashboardPage() {
     setComparedApplicantIds(prev => 
       prev.includes(appId) ? prev.filter(id => id !== appId) : [...prev, appId]
     );
+  };
+
+  const handleBulkAction = async (action: string) => {
+    if (comparedApplicantIds.length === 0) return;
+    
+    const count = comparedApplicantIds.length;
+    let message = "";
+    if (action === "shortlist") message = `Are you sure you want to shortlist ${count} candidates?`;
+    else if (action === "reject") message = `Are you sure you want to reject ${count} candidates?`;
+    else if (action === "bookmark") message = `Are you sure you want to toggle bookmark for ${count} candidates?`;
+    
+    if (!confirm(message)) return;
+
+    toast.loading(`Processing bulk action for ${count} candidates...`, { id: "bulk-action" });
+
+    try {
+      if (action === "shortlist" || action === "reject") {
+        const targetStatus = action === "shortlist" ? "interviewing" : "rejected";
+        await Promise.all(
+          comparedApplicantIds.map(id =>
+            updateStatusMutation.mutateAsync({ id, status: targetStatus })
+          )
+        );
+        toast.success(`Successfully updated ${count} candidates to '${targetStatus === "interviewing" ? "Interviewing" : "Rejected"}'!`, { id: "bulk-action" });
+      } else if (action === "bookmark") {
+        const applicantsToUpdate = appsList.filter((a: any) => comparedApplicantIds.includes(a.id));
+        await Promise.all(
+          applicantsToUpdate.map(async (app: any) => {
+            let existingMeta: any = {};
+            try {
+              existingMeta = JSON.parse(app.notes) || {};
+            } catch {}
+            const currentBookmarked = !!existingMeta.is_bookmarked;
+            const updatedMeta = {
+              ...existingMeta,
+              is_bookmarked: !currentBookmarked,
+            };
+            return supabase
+              .from("applications")
+              .update({ notes: JSON.stringify(updatedMeta) })
+              .eq("id", app.id);
+          })
+        );
+        toast.success(`Successfully toggled bookmarks for ${count} candidates!`, { id: "bulk-action" });
+      }
+      
+      setComparedApplicantIds([]);
+      qc.invalidateQueries({ queryKey: ["company-applications"] });
+    } catch (e: any) {
+      toast.error("Failed to run bulk action: " + e.message, { id: "bulk-action" });
+    }
   };
 
   // Analytics extraction
@@ -1004,6 +1126,16 @@ function CompanyDashboardPage() {
                   </div>
                 </div>
 
+                {!isVerified && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-700 text-xs rounded-xl flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Verification Required</p>
+                      <p className="mt-0.5">Your organization is currently unverified. You can save listings as <strong>Drafts</strong>, but company verification is required to publish active listings.</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="contactEmail">Company Contact Email (for applications)</Label>
@@ -1018,12 +1150,18 @@ function CompanyDashboardPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="jobStatus">Posting Status</Label>
-                    <Select value={jobStatus} onValueChange={setJobStatus}>
+                    <Select
+                      value={!isVerified ? "draft" : jobStatus}
+                      onValueChange={(val) => {
+                        if (isVerified) setJobStatus(val);
+                        else toast.warning("Complete company verification to publish live!");
+                      }}
+                    >
                       <SelectTrigger id="jobStatus">
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="published">Publish Active Listing</SelectItem>
+                        <SelectItem value="published" disabled={!isVerified}>Publish Active Listing {!isVerified && "(Requires Verification)"}</SelectItem>
                         <SelectItem value="draft">Save as Draft</SelectItem>
                       </SelectContent>
                     </Select>
@@ -1709,22 +1847,33 @@ function CompanyDashboardPage() {
                 </div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {activeJobs.map(job => (
-                    <InternshipRecruiterCard
-                      key={job.id}
-                      job={job}
-                      applicantsCount={appsList.filter((a: any) => a.internship_id === job.id).length}
-                      onEdit={() => startEditJob(job)}
-                      onDuplicate={() => duplicateJob(job)}
-                      onTogglePublish={() => togglePublishJob(job)}
-                      onClosePosting={() => closeJobPosting(job)}
-                      onDelete={() => {
-                        if (confirm("Delete this internship posting permanently?")) {
-                          deleteMutation.mutate({ id: job.id });
-                        }
-                      }}
-                    />
-                  ))}
+                  {activeJobs.map(job => {
+                    const jobApplicants = appsList.filter((a: any) => a.internship_id === job.id);
+                    const acceptedApplicants = jobApplicants.filter((a: any) => a.status === "accepted" || a.status === "offered");
+                    const acceptanceRate = jobApplicants.length ? Math.round((acceptedApplicants.length / jobApplicants.length) * 100) : 0;
+                    const averageMatchScore = jobApplicants.length
+                      ? Math.round(jobApplicants.reduce((sum: number, a: any) => sum + getMockMatchScore(a), 0) / jobApplicants.length)
+                      : 0;
+
+                    return (
+                      <InternshipRecruiterCard
+                        key={job.id}
+                        job={job}
+                        applicantsCount={jobApplicants.length}
+                        acceptanceRate={acceptanceRate}
+                        averageMatchScore={averageMatchScore}
+                        onEdit={() => startEditJob(job)}
+                        onDuplicate={() => duplicateJob(job)}
+                        onTogglePublish={() => togglePublishJob(job)}
+                        onClosePosting={() => closeJobPosting(job)}
+                        onDelete={() => {
+                          if (confirm("Delete this internship posting permanently?")) {
+                            deleteMutation.mutate({ id: job.id });
+                          }
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>
@@ -1742,6 +1891,8 @@ function CompanyDashboardPage() {
                       key={job.id}
                       job={job}
                       applicantsCount={0}
+                      acceptanceRate={0}
+                      averageMatchScore={0}
                       onEdit={() => startEditJob(job)}
                       onDuplicate={() => duplicateJob(job)}
                       onTogglePublish={() => togglePublishJob(job)}
@@ -1765,22 +1916,33 @@ function CompanyDashboardPage() {
                 </div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {closedJobs.map(job => (
-                    <InternshipRecruiterCard
-                      key={job.id}
-                      job={job}
-                      applicantsCount={appsList.filter((a: any) => a.internship_id === job.id).length}
-                      onEdit={() => startEditJob(job)}
-                      onDuplicate={() => duplicateJob(job)}
-                      onTogglePublish={() => togglePublishJob(job)}
-                      onClosePosting={null}
-                      onDelete={() => {
-                        if (confirm("Delete this archived listing permanently?")) {
-                          deleteMutation.mutate({ id: job.id });
-                        }
-                      }}
-                    />
-                  ))}
+                  {closedJobs.map(job => {
+                    const jobApplicants = appsList.filter((a: any) => a.internship_id === job.id);
+                    const acceptedApplicants = jobApplicants.filter((a: any) => a.status === "accepted" || a.status === "offered");
+                    const acceptanceRate = jobApplicants.length ? Math.round((acceptedApplicants.length / jobApplicants.length) * 100) : 0;
+                    const averageMatchScore = jobApplicants.length
+                      ? Math.round(jobApplicants.reduce((sum: number, a: any) => sum + getMockMatchScore(a), 0) / jobApplicants.length)
+                      : 0;
+
+                    return (
+                      <InternshipRecruiterCard
+                        key={job.id}
+                        job={job}
+                        applicantsCount={jobApplicants.length}
+                        acceptanceRate={acceptanceRate}
+                        averageMatchScore={averageMatchScore}
+                        onEdit={() => startEditJob(job)}
+                        onDuplicate={() => duplicateJob(job)}
+                        onTogglePublish={() => togglePublishJob(job)}
+                        onClosePosting={null}
+                        onDelete={() => {
+                          if (confirm("Delete this archived listing permanently?")) {
+                            deleteMutation.mutate({ id: job.id });
+                          }
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>
@@ -1832,6 +1994,19 @@ function CompanyDashboardPage() {
                   <Button size="sm" onClick={() => setActiveTab("compare")} className="gap-1.5 bg-violet-600 hover:bg-violet-700">
                     <GitCompare className="h-4 w-4" /> Compare ({comparedApplicantIds.length})
                   </Button>
+                )}
+
+                {comparedApplicantIds.length > 0 && (
+                  <Select onValueChange={handleBulkAction} value="">
+                    <SelectTrigger className="w-36 text-xs h-9 bg-slate-900 text-white hover:bg-slate-800">
+                      <SelectValue placeholder="Bulk Actions" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="shortlist">Bulk Shortlist</SelectItem>
+                      <SelectItem value="reject">Bulk Reject</SelectItem>
+                      <SelectItem value="bookmark">Bulk Bookmark</SelectItem>
+                    </SelectContent>
+                  </Select>
                 )}
               </div>
             </div>
@@ -2609,6 +2784,68 @@ function CompanyDashboardPage() {
                   </div>
                 </div>
 
+                {/* Interview Scheduler Card */}
+                {selectedApplicant.status === "interviewing" && (
+                  <Card className="p-4 border shadow-sm space-y-3 bg-violet-500/5 border-violet-500/10">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-violet-700 flex items-center gap-1.5">
+                      <Calendar className="h-4 w-4" /> Interview Scheduler
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div className="space-y-1">
+                        <Label htmlFor="int-date" className="text-[10px]">Date</Label>
+                        <Input
+                          id="int-date"
+                          type="date"
+                          value={interviewDate}
+                          onChange={(e) => setInterviewDate(e.target.value)}
+                          className="h-8 text-xs bg-background"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="int-time" className="text-[10px]">Time</Label>
+                        <Input
+                          id="int-time"
+                          type="time"
+                          value={interviewTime}
+                          onChange={(e) => setInterviewTime(e.target.value)}
+                          className="h-8 text-xs bg-background"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <Label htmlFor="int-link" className="text-[10px]">Meeting URL</Label>
+                      <Input
+                        id="int-link"
+                        value={interviewLink}
+                        onChange={(e) => setInterviewLink(e.target.value)}
+                        placeholder="e.g. https://meet.google.com/abc-defg-hij"
+                        className="h-8 text-xs bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <Label htmlFor="int-instr" className="text-[10px]">Interviewer Instructions</Label>
+                      <Textarea
+                        id="int-instr"
+                        value={interviewInstructions}
+                        onChange={(e) => setInterviewInstructions(e.target.value)}
+                        placeholder="Prepare a 10-minute demo of your portfolio project..."
+                        rows={2}
+                        className="text-xs bg-background"
+                      />
+                    </div>
+                    <div className="flex justify-end pt-1">
+                      <Button
+                        size="xs"
+                        onClick={saveInterviewSchedule}
+                        disabled={isInterviewSaving}
+                        className="bg-violet-600 hover:bg-violet-700 text-white font-bold"
+                      >
+                        {isInterviewSaving ? "Saving Schedule..." : "Save Interview Schedule"}
+                      </Button>
+                    </div>
+                  </Card>
+                )}
+
                 {/* 4. Update Recruitment Stage selector */}
                 <div className="border-t border-border pt-4 space-y-2">
                   <Label htmlFor="recruiter-app-status" className="text-xs font-semibold">Change Stage Status</Label>
@@ -2686,6 +2923,8 @@ function FacebookIcon(props: React.SVGProps<SVGSVGElement>) {
 function InternshipRecruiterCard({
   job,
   applicantsCount,
+  acceptanceRate,
+  averageMatchScore,
   onEdit,
   onDuplicate,
   onTogglePublish,
@@ -2694,6 +2933,8 @@ function InternshipRecruiterCard({
 }: {
   job: any;
   applicantsCount: number;
+  acceptanceRate: number;
+  averageMatchScore: number;
   onEdit: () => void;
   onDuplicate: () => void;
   onTogglePublish: (() => void) | null;
@@ -2735,6 +2976,18 @@ function InternshipRecruiterCard({
           {Array.isArray(job.tech_stack) && job.tech_stack.slice(0, 3).map((t: string) => (
             <Badge key={t} variant="secondary" className="text-[9px] px-2 py-0">{t}</Badge>
           ))}
+        </div>
+
+        {/* Detailed Performance Metrics widgets */}
+        <div className="mt-4 grid grid-cols-2 gap-2 bg-muted/40 p-2.5 rounded-lg text-[10px]">
+          <div>
+            <span className="text-muted-foreground block">Avg. Match Fit</span>
+            <span className="font-bold text-foreground text-xs">{averageMatchScore}%</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground block">Acceptance Rate</span>
+            <span className="font-bold text-foreground text-xs">{acceptanceRate}%</span>
+          </div>
         </div>
       </div>
 

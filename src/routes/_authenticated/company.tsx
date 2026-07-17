@@ -1411,15 +1411,24 @@ function CompanyDashboardPage() {
                     <AreaChart data={applicationsTimelineData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorApps" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-                      <ChartTooltip />
-                      <Area type="monotone" dataKey="Applications" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorApps)" />
+                      <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" stroke="var(--muted-foreground)" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+                      <YAxis allowDecimals={false} stroke="var(--muted-foreground)" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+                      <ChartTooltip
+                        contentStyle={{
+                          backgroundColor: "var(--card)",
+                          borderColor: "var(--border)",
+                          borderRadius: "8px",
+                          color: "var(--foreground)",
+                          fontSize: "12px",
+                        }}
+                        labelStyle={{ fontWeight: "bold", color: "var(--foreground)" }}
+                      />
+                      <Area type="monotone" dataKey="Applications" stroke="var(--primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorApps)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -2327,11 +2336,20 @@ function CompanyDashboardPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={appsPerJobData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-                      <ChartTooltip />
-                      <Bar dataKey="Applicants" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                      <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" stroke="var(--muted-foreground)" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+                      <YAxis allowDecimals={false} stroke="var(--muted-foreground)" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+                      <ChartTooltip
+                        contentStyle={{
+                          backgroundColor: "var(--card)",
+                          borderColor: "var(--border)",
+                          borderRadius: "8px",
+                          color: "var(--foreground)",
+                          fontSize: "12px",
+                        }}
+                        labelStyle={{ fontWeight: "bold", color: "var(--foreground)" }}
+                      />
+                      <Bar dataKey="Applicants" fill="var(--primary)" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -2347,11 +2365,20 @@ function CompanyDashboardPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={mostViewedJobsData} layout="vertical" margin={{ left: -10, right: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 10 }} />
-                      <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 9 }} />
-                      <ChartTooltip />
-                      <Bar dataKey="Views" fill="#ec4899" radius={[0, 4, 4, 0]} />
+                      <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" stroke="var(--muted-foreground)" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+                      <YAxis dataKey="name" type="category" width={100} stroke="var(--muted-foreground)" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} />
+                      <ChartTooltip
+                        contentStyle={{
+                          backgroundColor: "var(--card)",
+                          borderColor: "var(--border)",
+                          borderRadius: "8px",
+                          color: "var(--foreground)",
+                          fontSize: "12px",
+                        }}
+                        labelStyle={{ fontWeight: "bold", color: "var(--foreground)" }}
+                      />
+                      <Bar dataKey="Views" fill="var(--secondary)" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -2367,13 +2394,22 @@ function CompanyDashboardPage() {
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={topRequiredSkillsData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-                      <ChartTooltip />
+                      <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" stroke="var(--muted-foreground)" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+                      <YAxis allowDecimals={false} stroke="var(--muted-foreground)" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+                      <ChartTooltip
+                        contentStyle={{
+                          backgroundColor: "var(--card)",
+                          borderColor: "var(--border)",
+                          borderRadius: "8px",
+                          color: "var(--foreground)",
+                          fontSize: "12px",
+                        }}
+                        labelStyle={{ fontWeight: "bold", color: "var(--foreground)" }}
+                      />
                       <Bar dataKey="Demand" radius={[4, 4, 0, 0]}>
                         {topRequiredSkillsData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={["#4f46e5", "#6366f1", "#818cf8", "#a5b4fc", "#c7d2fe", "#e0e7ff"][index % 6]} />
+                          <Cell key={`cell-${index}`} fill={["var(--primary)", "var(--secondary)", "#818cf8", "#a5b4fc", "#c7d2fe", "#e0e7ff"][index % 6]} />
                         ))}
                       </Bar>
                     </BarChart>

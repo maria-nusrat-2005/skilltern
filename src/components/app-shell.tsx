@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { getProfileData } from "@/lib/profile.functions";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const studentNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -121,9 +122,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Mobile top bar */}
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3 backdrop-blur lg:hidden">
         <Brand to={role === "admin" ? "/admin" : role === "company" ? "/company" : "/dashboard"} />
-        <Button size="icon" variant="ghost" onClick={handleSignOut} aria-label="Sign out">
-          <LogOut className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Button size="icon" variant="ghost" onClick={handleSignOut} aria-label="Sign out">
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
       </header>
 
       {/* Mobile bottom nav */}
@@ -150,6 +154,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       </nav>
 
       <main className="pb-20 lg:pb-0 lg:pl-64">
+        {/* Desktop top header bar */}
+        <header className="sticky top-0 z-20 hidden lg:flex h-14 items-center justify-end border-b border-border bg-background/95 px-8 backdrop-blur">
+          <ThemeToggle />
+        </header>
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">{children}</div>
       </main>
 

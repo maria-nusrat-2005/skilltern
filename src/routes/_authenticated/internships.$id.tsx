@@ -74,8 +74,6 @@ function InternshipDetail() {
   // States for uploads
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [cvFile, setCvFile] = useState<File | null>(null);
-  const [sscFile, setSscFile] = useState<File | null>(null);
-  const [hscFile, setHscFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const q = useQuery({ queryKey: ["internship", id], queryFn: () => getInternship({ data: { id } }) });
@@ -131,8 +129,6 @@ function InternshipDetail() {
       setIsApplyModalOpen(false);
       // Reset files
       setCvFile(null);
-      setSscFile(null);
-      setHscFile(null);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Something went wrong"),
   });
@@ -156,31 +152,13 @@ function InternshipDetail() {
       if (cvErr) throw cvErr;
       const cvUrl = supabase.storage.from("resumes").getPublicUrl(cvPath).data.publicUrl;
 
-      let sscUrl: string | null = null;
-      if (sscFile) {
-        const sscPath = `${user.id}/${Date.now()}-ssc-${sscFile.name}`;
-        const { error: sscErr } = await supabase.storage.from("resumes").upload(sscPath, sscFile);
-        if (sscErr) throw sscErr;
-        sscUrl = supabase.storage.from("resumes").getPublicUrl(sscPath).data.publicUrl;
-      }
-
-      let hscUrl: string | null = null;
-      if (hscFile) {
-        const hscPath = `${user.id}/${Date.now()}-hsc-${hscFile.name}`;
-        const { error: hscErr } = await supabase.storage.from("resumes").upload(hscPath, hscFile);
-        if (hscErr) throw hscErr;
-        hscUrl = supabase.storage.from("resumes").getPublicUrl(hscPath).data.publicUrl;
-      }
-
       // 4. Save application
       await save.mutateAsync({
         status: "applied",
         cvUrl,
-        sscCertificateUrl: sscUrl,
-        hscCertificateUrl: hscUrl,
       });
     } catch (err: any) {
-      toast.error(err.message || "Failed to upload documents.");
+      toast.error(err.message || "Failed to upload CV.");
     } finally {
       setUploading(false);
     }
@@ -677,32 +655,6 @@ function InternshipDetail() {
                   accept=".pdf"
                   onChange={(e) => setCvFile(e.target.files?.[0] ?? null)}
                   required
-                  disabled={uploading}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="ssc-upload" className="text-sm font-semibold flex items-center gap-1.5">
-                  <Award className="h-4 w-4 text-amber-500" /> SSC Certificate (Optional)
-                </Label>
-                <Input
-                  id="ssc-upload"
-                  type="file"
-                  accept=".pdf"
-                  onChange={(e) => setSscFile(e.target.files?.[0] ?? null)}
-                  disabled={uploading}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="hsc-upload" className="text-sm font-semibold flex items-center gap-1.5">
-                  <Award className="h-4 w-4 text-emerald-500" /> HSC Certificate (Optional)
-                </Label>
-                <Input
-                  id="hsc-upload"
-                  type="file"
-                  accept=".pdf"
-                  onChange={(e) => setHscFile(e.target.files?.[0] ?? null)}
                   disabled={uploading}
                 />
               </div>

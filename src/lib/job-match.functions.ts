@@ -168,3 +168,111 @@ Return JSON:
       screening_answers: result.screening_answers ?? [],
     };
   });
+
+export const getApplicantMatchDetail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { applicationId: string }) => {
+    if (!d?.applicationId) throw new Error("applicationId is required");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    // 1. Fetch the application with the nested internship
+    const { data: app, error: appErr } = await supabase
+      .from("applications")
+      .select(`
+        *,
+        internship:internship_id (
+          *
+        )
+      `)
+      .eq("id", data.applicationId)
+      .maybeSingle();
+
+    if (appErr || !app) throw new Error("Application not found");
+
+    const job = app.internship as any;
+    if (!job) throw new Error("Internship associated with application not found");
+
+    // 2. Fetch the applicant's latest parsed resume
+    const { data: parsed } = await supabase
+      .from("parsed_resumes")
+      .select("data")
+      .eq("user_id", app.user_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // 3. Fetch status history timeline
+    const { data: history } = await supabase
+      .from("application_status_history")
+      .select("*")
+      .eq("application_id", app.id)
+      .order("created_at", { ascending: true });
+
+    const timeline = (history ?? []).map((h) => ({
+      status: h.status,
+      created_at: h.created_at,
+      note: h.note,
+    }));
+
+    const extracted = (parsed?.data as { extracted?: { skills?: string[] } } | null)?.extracted;
+    const resumeSkills = uniqLower(asArr(extracted?.skills));
+
+    if (resumeSkills.length === 0) {
+      return {
+        hasResume: false as const,
+        coverage: 0,
+        matched: [],
+        missing: uniqLower([...asArr(job.requirements), ...asArr(job.tech_stack)]),
+        niceMatched: [],
+        niceMissing: uniqLower(asArr(job.preferred_skills)),
+        recommendation: "Applicant has not uploaded/analyzed a resume yet.",
+        timeline,
+      };
+    }
+
+    const required = uniqLower([...asArr(job.requirements), ...asArr(job.tech_stack)]);
+    const niceToHave = uniqLower(asArr(job.preferred_skills));
+    const have = new Set(resumeSkills.map((s) => s.toLowerCase()));
+
+    const matched = required.filter((s) => have.has(s.toLowerCase()));
+    const missing = required.filter((s) => !have.has(s.toLowerCase()));
+    const niceMatched = niceToHave.filter((s) => have.has(s.toLowerCase()));
+    const niceMissing = niceToHave.filter((s) => !have.has(s.toLowerCase()));
+    const coverage = required.length
+      ? Math.round((matched.length / required.length) * 100)
+      : 100;
+
+    let recommendation = "";
+    try {
+      const { geminiJson } = await import("@/lib/gemini.server");
+      const result = await geminiJson<{ recommendation: string }>({
+        system: "You are an AI hiring assistant. Analyze candidate fit for a role. Be professional, concise, and direct. Return JSON only.",
+        prompt: `Internship Role: ${job.title} @ ${job.company}.
+Required skills: ${required.join(", ")}.
+Preferred nice-to-have: ${niceToHave.join(", ") || "none"}.
+Candidate skills: ${resumeSkills.join(", ")}.
+Provide a 1-2 sentence recruiter-facing evaluation summarizing the candidate's core alignment (strengths and gaps) and fit score (${coverage}%).
+Return JSON: { "recommendation": string }`,
+        temperature: 0.5,
+      });
+      recommendation = result.recommendation || "";
+    } catch {
+      recommendation = coverage >= 70
+        ? "Strong alignment with core technical stack and requirements."
+        : "Candidate has partial stack alignment; check if missing skills are critical.";
+    }
+
+    return {
+      hasResume: true as const,
+      coverage,
+      matched,
+      missing,
+      niceMatched,
+      niceMissing,
+      recommendation,
+      timeline,
+    };
+  });

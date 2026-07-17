@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -24,7 +24,7 @@ import {
   Mail,
 } from "lucide-react";
 import { useCompare } from "@/hooks/use-compare";
-import { getInternship } from "@/lib/internships.functions";
+import { getInternship, parseInternshipMetadata, incrementInternshipViews } from "@/lib/internships.functions";
 import { getSimilarInternships } from "@/lib/discovery.functions";
 import { saveApplication } from "@/lib/applications.functions";
 import { compareResumeToJob, generateApplicationKit } from "@/lib/job-match.functions";
@@ -65,6 +65,10 @@ function InternshipDetail() {
   const qc = useQueryClient();
   const compare = useCompare();
   const { user } = useAuth();
+
+  useEffect(() => {
+    incrementInternshipViews({ data: { id } }).catch(() => {});
+  }, [id]);
   
   // States for uploads
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
@@ -199,6 +203,7 @@ function InternshipDetail() {
     );
   }
 
+  const { cleanDescription, status, required_cgpa, deadline, views } = parseInternshipMetadata(job.description);
   const tech = asArr(job.tech_stack);
   const requirements = asArr(job.requirements);
   const responsibilities = asArr(job.responsibilities);
@@ -283,14 +288,24 @@ function InternshipDetail() {
                   {job.duration}
                 </span>
               )}
+              {required_cgpa && (
+                <Badge variant="outline" className="border-indigo-500/30 text-indigo-600 bg-indigo-500/5 dark:text-indigo-400">
+                  Min. CGPA: {required_cgpa}
+                </Badge>
+              )}
+              {deadline && (
+                <Badge variant="outline" className="border-rose-500/30 text-rose-600 bg-rose-500/5 dark:text-rose-400">
+                  Deadline: {new Date(deadline).toLocaleDateString()}
+                </Badge>
+              )}
             </div>
 
 
-            {job.description && (
+            {cleanDescription && (
               <div className="mt-6">
                 <h2 className="font-display font-semibold">About the role</h2>
                 <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-                  {job.description}
+                  {cleanDescription}
                 </p>
               </div>
             )}

@@ -238,3 +238,43 @@ export const adminGetStats = createServerFn({ method: "GET" })
       applications: applicationsCount ?? 0,
     };
   });
+
+export function parseCompanyBio(bioText: string | null) {
+  const defaultMeta = {
+    industry: "Technology",
+    hr_contact_info: "",
+    twitter_url: "",
+    facebook_url: "",
+  };
+  if (!bioText) return { cleanBio: "", ...defaultMeta };
+
+  const parts = bioText.split("---METADATA---");
+  if (parts.length < 2) {
+    return { cleanBio: bioText, ...defaultMeta };
+  }
+
+  try {
+    const meta = JSON.parse(parts[1].trim());
+    return {
+      cleanBio: parts[0].trim(),
+      industry: meta.industry || "Technology",
+      hr_contact_info: meta.hr_contact_info || "",
+      twitter_url: meta.twitter_url || "",
+      facebook_url: meta.facebook_url || "",
+    };
+  } catch (e) {
+    return { cleanBio: parts[0].trim(), ...defaultMeta };
+  }
+}
+
+export function serializeCompanyBio(
+  cleanBio: string,
+  meta: {
+    industry: string;
+    hr_contact_info?: string;
+    twitter_url?: string;
+    facebook_url?: string;
+  }
+) {
+  return `${cleanBio.trim()}\n\n---METADATA---\n${JSON.stringify(meta)}`;
+}

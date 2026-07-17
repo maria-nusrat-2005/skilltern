@@ -27,6 +27,30 @@ Skilltern is built using a modern, unified full-stack architecture with the foll
 
 ---
 
+## 🗺️ High-Level System Flow (Poster-Friendly)
+
+The following simplified flowchart shows the core student lifecycle on Skilltern, optimized for high-level overviews and presentations:
+
+```mermaid
+flowchart LR
+    %% Nodes / Steps
+    Onboard["1. Profile & Resume Upload\n(ATS Scoring & Feedback)"] --> Match["2. Smart Match Engine\n(Find Best-Fit Internships)"]
+    Match --> Gaps["3. Roadmaps & Quizzes\n(Learn & Verify Skills)"]
+    Gaps --> Apply["4. Apply & Track\n(Visual Kanban Board)"]
+    
+    %% Floating Support
+    Mentor(("AI Career Mentor\n(Personalized Chat Guidance)")) -.-> Onboard & Match & Gaps & Apply
+
+    %% Custom Styling
+    classDef step fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0f172a;
+    classDef support fill:#fae8ff,stroke:#c084fc,stroke-width:2px,color:#0f172a;
+
+    class Onboard,Match,Gaps,Apply step;
+    class Mentor support;
+```
+
+---
+
 ## 💡 Key Features
 
 ### 1. Vector-Based Internship Matching

@@ -49,7 +49,7 @@ function StarRow({ value, size = 14 }: { value: number; size?: number }) {
         <Star
           key={i}
           style={{ width: size, height: size }}
-          className={i <= value ? "fill-accent text-accent" : "text-muted-foreground/30"}
+          className={i <= value ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}
         />
       ))}
     </span>
@@ -169,7 +169,7 @@ function CompanyDetail() {
                           <Star
                             className={
                               i <= rating
-                                ? "h-7 w-7 fill-accent text-accent"
+                                ? "h-7 w-7 fill-amber-400 text-amber-400"
                                 : "h-7 w-7 text-muted-foreground/30"
                             }
                           />
@@ -294,10 +294,10 @@ function CompanyDetail() {
               {data.ratingBreakdown.map((b) => (
                 <div key={b.star} className="flex items-center gap-2 text-xs">
                   <span className="w-3 text-muted-foreground">{b.star}</span>
-                  <Star className="h-3 w-3 fill-accent text-accent" />
+                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-accent"
+                      className="h-full rounded-full bg-amber-400"
                       style={{ width: `${(b.count / maxBreakdown) * 100}%` }}
                     />
                   </div>

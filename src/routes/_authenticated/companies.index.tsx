@@ -19,7 +19,7 @@ function Stars({ value }: { value: number | null }) {
   if (value === null) return <span className="text-xs text-muted-foreground">No reviews yet</span>;
   return (
     <span className="flex items-center gap-1 text-sm font-medium">
-      <Star className="h-3.5 w-3.5 fill-accent text-accent" />
+      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
       {value.toFixed(1)}
     </span>
   );

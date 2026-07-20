@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { parseStipend } from "@/lib/insights.functions";
+import { parseCompanyBio } from "@/lib/profile.functions";
 
 function publicClient() {
   return createClient<Database>(
@@ -128,13 +129,15 @@ export const getCompany = createServerFn({ method: "GET" })
       count: ratings.filter((r) => r === star).length,
     }));
 
+    const { cleanBio } = parseCompanyBio(companyProfile?.company_bio ?? null);
+
     return {
       company: data.company,
       companyDomain: companyProfile?.company_domain ?? jobs?.[0]?.company_domain ?? null,
       companyType: companyProfile?.company_type ?? jobs?.[0]?.company_type ?? null,
       companySize: companyProfile?.company_size ?? null,
       foundedYear: companyProfile?.founded_year ?? null,
-      companyBio: companyProfile?.company_bio ?? null,
+      companyBio: cleanBio || null,
       logoUrl: companyProfile?.logo_url ?? null,
       location: companyProfile?.location ?? jobs?.[0]?.location ?? null,
       internships: jobs ?? [],

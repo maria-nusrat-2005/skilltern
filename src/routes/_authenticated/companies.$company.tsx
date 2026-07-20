@@ -19,6 +19,7 @@ import {
   addCompanyReview,
   deleteCompanyReview,
 } from "@/lib/companies.functions";
+import { parseCompanyBio } from "@/lib/profile.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/dashboard-bits";
 import { CompanyLogo } from "@/components/company-logo";
@@ -248,8 +249,8 @@ function CompanyDetail() {
         <div className="space-y-6">
           <Card className="p-6">
             <h2 className="font-display font-semibold border-b border-border pb-2 mb-3">About {data.company}</h2>
-            {data.companyBio ? (
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap mb-4">{data.companyBio}</p>
+            {data.companyBio && parseCompanyBio(data.companyBio).cleanBio ? (
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap mb-4">{parseCompanyBio(data.companyBio).cleanBio}</p>
             ) : (
               <p className="text-sm text-muted-foreground italic mb-4">No biography provided.</p>
             )}

@@ -50,6 +50,7 @@ import {
   Radio,
   HardDrive,
   Laptop,
+  Pin,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -69,9 +70,19 @@ import { adminListUsers, adminUpdateUserRole, adminGetStats } from "@/lib/profil
 import { listInternships, deleteInternship } from "@/lib/internships.functions";
 import { listCompanies } from "@/lib/companies.functions";
 import {
-  sendBroadcastAnnouncement,
+  getAnnouncementsAdmin,
   getActiveAnnouncements,
+  sendBroadcastAnnouncement,
+  createAnnouncement,
+  updateAnnouncement,
+  togglePinAnnouncement,
+  togglePublishAnnouncement,
   deleteAnnouncement,
+  type FullAnnouncement,
+  type AnnouncementCategory,
+  type AnnouncementPriority,
+  type AnnouncementTarget,
+  type AnnouncementStatus,
 } from "@/lib/announcements.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { Card } from "@/components/ui/card";
@@ -186,10 +197,50 @@ function AdminConsolePage() {
   ]);
   const [newSkill, setNewSkill] = useState("");
 
-  // Broadcast Notification State
+  // Broadcast & Announcement States
   const [broadcastTarget, setBroadcastTarget] = useState("all");
   const [broadcastTitle, setBroadcastTitle] = useState("");
   const [broadcastBody, setBroadcastBody] = useState("");
+
+  const [annSearch, setAnnSearch] = useState("");
+  const [annCategoryFilter, setAnnCategoryFilter] = useState("all");
+  const [annPriorityFilter, setAnnPriorityFilter] = useState("all");
+  const [annStatusFilter, setAnnStatusFilter] = useState("all");
+  const [annAudienceFilter, setAnnAudienceFilter] = useState("all");
+
+  const [annModalOpen, setAnnModalOpen] = useState(false);
+  const [editingAnn, setEditingAnn] = useState<FullAnnouncement | null>(null);
+
+  const [annTitle, setAnnTitle] = useState("");
+  const [annContent, setAnnContent] = useState("");
+  const [annCategory, setAnnCategory] = useState<AnnouncementCategory>("General");
+  const [annPriority, setAnnPriority] = useState<AnnouncementPriority>("Medium");
+  const [annAudience, setAnnAudience] = useState<AnnouncementTarget>("Everyone");
+  const [annStatus, setAnnStatus] = useState<AnnouncementStatus>("Published");
+  const [annPublishDate, setAnnPublishDate] = useState("");
+  const [annExpiryDate, setAnnExpiryDate] = useState("");
+  const [annBannerImage, setAnnBannerImage] = useState("");
+  const [annIsPinned, setAnnIsPinned] = useState(false);
+  const [annAttachmentName, setAnnAttachmentName] = useState("");
+  const [annAttachmentUrl, setAnnAttachmentUrl] = useState("");
+  const [annAttachmentsList, setAnnAttachmentsList] = useState<{ name: string; url: string }[]>([]);
+
+  const resetAnnForm = () => {
+    setEditingAnn(null);
+    setAnnTitle("");
+    setAnnContent("");
+    setAnnCategory("General");
+    setAnnPriority("Medium");
+    setAnnAudience("Everyone");
+    setAnnStatus("Published");
+    setAnnPublishDate("");
+    setAnnExpiryDate("");
+    setAnnBannerImage("");
+    setAnnIsPinned(false);
+    setAnnAttachmentName("");
+    setAnnAttachmentUrl("");
+    setAnnAttachmentsList([]);
+  };
 
   // Platform Settings State
   const [platformSettings, setPlatformSettings] = useState({
@@ -275,6 +326,63 @@ function AdminConsolePage() {
     queryKey: ["active-announcements"],
     queryFn: () => getActiveAnnouncements(),
   });
+  const adminAnnouncementsQ = useQuery({
+    queryKey: ["admin-announcements"],
+    queryFn: () => getAnnouncementsAdmin(),
+  });
+
+  // Mutations
+  const createAnnMutation = useMutation({
+    mutationFn: (data: any) => createAnnouncement({ data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-announcements"] });
+      qc.invalidateQueries({ queryKey: ["public-announcements"] });
+      toast.success("Announcement published successfully!");
+      setAnnModalOpen(false);
+      resetAnnForm();
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to create announcement.");
+    },
+  });
+
+  const updateAnnMutation = useMutation({
+    mutationFn: (data: any) => updateAnnouncement({ data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-announcements"] });
+      qc.invalidateQueries({ queryKey: ["public-announcements"] });
+      toast.success("Announcement updated successfully!");
+      setAnnModalOpen(false);
+      resetAnnForm();
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to update announcement.");
+    },
+  });
+
+  const pinAnnMutation = useMutation({
+    mutationFn: (id: string) => togglePinAnnouncement({ data: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-announcements"] });
+      qc.invalidateQueries({ queryKey: ["public-announcements"] });
+      toast.success("Pin status updated.");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to toggle pin.");
+    },
+  });
+
+  const publishAnnMutation = useMutation({
+    mutationFn: (v: { id: string; status: AnnouncementStatus }) => togglePublishAnnouncement({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-announcements"] });
+      qc.invalidateQueries({ queryKey: ["public-announcements"] });
+      toast.success("Status updated.");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to update status.");
+    },
+  });
 
   // Mutations
   const updateRoleMutation = useMutation({
@@ -305,9 +413,9 @@ function AdminConsolePage() {
   const sendBroadcastMutation = useMutation({
     mutationFn: (data: { target: "all" | "students" | "companies"; title: string; body: string }) =>
       sendBroadcastAnnouncement({ data }),
-    onSuccess: (ann) => {
+    onSuccess: (ann: any) => {
       qc.invalidateQueries({ queryKey: ["active-announcements"] });
-      toast.success(`Announcement broadcasted to ${ann.target.toUpperCase()}!`);
+      toast.success(`Announcement broadcasted to ${(ann?.target || "all").toUpperCase()}!`);
       setBroadcastTitle("");
       setBroadcastBody("");
     },
@@ -397,6 +505,71 @@ function AdminConsolePage() {
     setNewCategory("");
     toast.success("New master category added.");
   };
+
+  const handleSaveAnnouncement = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!annTitle.trim() || !annContent.trim()) {
+      toast.error("Please enter both title and content.");
+      return;
+    }
+
+    const payload = {
+      title: annTitle,
+      content: annContent,
+      category: annCategory,
+      priority: annPriority,
+      target_audience: annAudience,
+      status: annStatus,
+      publish_date: annPublishDate ? new Date(annPublishDate).toISOString() : new Date().toISOString(),
+      expiry_date: annExpiryDate ? new Date(annExpiryDate).toISOString() : undefined,
+      banner_image: annBannerImage || undefined,
+      attachments: annAttachmentsList,
+      is_pinned: annIsPinned,
+    };
+
+    if (editingAnn) {
+      updateAnnMutation.mutate({ id: editingAnn.id, ...payload });
+    } else {
+      createAnnMutation.mutate(payload);
+    }
+  };
+
+  const handleStartEditAnn = (ann: FullAnnouncement) => {
+    setEditingAnn(ann);
+    setAnnTitle(ann.title);
+    setAnnContent(ann.content);
+    setAnnCategory(ann.category);
+    setAnnPriority(ann.priority);
+    setAnnAudience(ann.target_audience);
+    setAnnStatus(ann.status);
+    setAnnPublishDate(ann.publish_date ? new Date(ann.publish_date).toISOString().slice(0, 16) : "");
+    setAnnExpiryDate(ann.expiry_date ? new Date(ann.expiry_date).toISOString().slice(0, 16) : "");
+    setAnnBannerImage(ann.banner_image || "");
+    setAnnIsPinned(ann.is_pinned);
+    setAnnAttachmentsList(ann.attachments || []);
+    setAnnModalOpen(true);
+  };
+
+  const handleAddAttachment = () => {
+    if (!annAttachmentName.trim() || !annAttachmentUrl.trim()) {
+      toast.error("Attachment name and URL are required.");
+      return;
+    }
+    setAnnAttachmentsList((prev) => [...prev, { name: annAttachmentName.trim(), url: annAttachmentUrl.trim() }]);
+    setAnnAttachmentName("");
+    setAnnAttachmentUrl("");
+    toast.success("Attachment added.");
+  };
+
+  const filteredAdminAnnouncements = (adminAnnouncementsQ.data ?? []).filter((ann) => {
+    const search = annSearch.toLowerCase();
+    const matchesSearch = ann.title.toLowerCase().includes(search) || ann.category.toLowerCase().includes(search);
+    const matchesCat = annCategoryFilter === "all" || ann.category === annCategoryFilter;
+    const matchesPrio = annPriorityFilter === "all" || ann.priority === annPriorityFilter;
+    const matchesStat = annStatusFilter === "all" || ann.status === annStatusFilter;
+    const matchesAud = annAudienceFilter === "all" || ann.target_audience === annAudienceFilter;
+    return matchesSearch && matchesCat && matchesPrio && matchesStat && matchesAud;
+  });
 
   const handleAddSkill = () => {
     if (!newSkill.trim()) return;
@@ -1223,102 +1396,210 @@ function AdminConsolePage() {
           </div>
         </TabsContent>
 
-        {/* 8. BROADCAST NOTIFICATIONS TAB */}
-        <TabsContent value="broadcast" className="space-y-4">
-          <Card className="p-6 max-w-2xl mx-auto space-y-4 shadow-sm">
-            <div className="border-b border-border pb-3">
-              <h2 className="text-xl font-bold font-display flex items-center gap-2">
-                <Bell className="h-5 w-5 text-sky-500" /> Broadcast System Announcement
-              </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Send push alerts and in-app system notifications to students or registered employers.
-              </p>
-            </div>
-
-            <form onSubmit={handleSendBroadcast} className="space-y-4">
+        {/* 8. ANNOUNCEMENTS MODULE TAB */}
+        <TabsContent value="broadcast" className="space-y-6">
+          <Card className="p-6 shadow-sm space-y-5">
+            {/* Header & Create Button */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-4">
               <div>
-                <Label className="text-xs font-semibold">Target Audience</Label>
-                <Select value={broadcastTarget} onValueChange={setBroadcastTarget}>
-                  <SelectTrigger className="mt-1 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Everyone (Students & Companies)</SelectItem>
-                    <SelectItem value="students">All Registered Students</SelectItem>
-                    <SelectItem value="companies">All Verified Employers</SelectItem>
-                  </SelectContent>
-                </Select>
+                <h2 className="text-xl font-bold font-display flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-sky-500" /> Platform Announcement Center
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Publish, schedule, pin, and manage broadcast news across Student and Recruiter dashboards.
+                </p>
               </div>
-
-              <div>
-                <Label className="text-xs font-semibold">Announcement Title</Label>
-                <Input
-                  placeholder="e.g. Scheduled System Maintenance Notice"
-                  value={broadcastTitle}
-                  onChange={(e) => setBroadcastTitle(e.target.value)}
-                  className="mt-1 text-xs"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-semibold">Message Content</Label>
-                <Textarea
-                  placeholder="Write message announcement..."
-                  value={broadcastBody}
-                  onChange={(e) => setBroadcastBody(e.target.value)}
-                  rows={4}
-                  className="mt-1 text-xs"
-                />
-              </div>
-
               <Button
-                type="submit"
-                className="w-full gap-2 bg-sky-600 hover:bg-sky-700 text-white"
-                disabled={sendBroadcastMutation.isPending}
+                onClick={() => {
+                  resetAnnForm();
+                  setAnnModalOpen(true);
+                }}
+                className="gap-2 bg-sky-600 hover:bg-sky-700 text-white text-xs h-9"
               >
-                <Send className="h-4 w-4" /> {sendBroadcastMutation.isPending ? "Sending..." : "Send Announcement"}
+                <Plus className="h-4 w-4" /> Create Announcement
               </Button>
-            </form>
-
-            {/* Active Live Broadcasts List */}
-            <div className="pt-4 border-t border-border space-y-3">
-              <h3 className="font-display font-bold text-sm flex items-center justify-between">
-                <span>Active Live Broadcasts</span>
-                <Badge variant="outline" className="text-[10px]">
-                  {activeAnnouncementsQ.data?.length ?? 0} Active
-                </Badge>
-              </h3>
-              {(activeAnnouncementsQ.data ?? []).length === 0 ? (
-                <p className="text-xs text-muted-foreground py-2">No active announcements currently broadcasted.</p>
-              ) : (
-                <div className="space-y-2">
-                  {(activeAnnouncementsQ.data ?? []).map((ann) => (
-                    <div key={ann.id} className="p-3 bg-muted/40 rounded-xl border border-border flex items-start justify-between gap-3">
-                      <div className="space-y-1 text-xs">
-                        <div className="flex items-center gap-2 font-bold text-foreground">
-                          <Badge className="bg-sky-600 text-white text-[10px] uppercase">{ann.target}</Badge>
-                          {ann.title}
-                        </div>
-                        <p className="text-muted-foreground">{ann.body}</p>
-                        <p className="text-[10px] text-muted-foreground font-mono">
-                          {new Date(ann.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-rose-500 hover:bg-rose-500/10 shrink-0"
-                        onClick={() => deleteAnnouncementMutation.mutate(ann.id)}
-                        disabled={deleteAnnouncementMutation.isPending}
-                        title="Delete Announcement"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
+
+            {/* Search and Filters */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <div className="relative w-64">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search title, category..."
+                  value={annSearch}
+                  onChange={(e) => setAnnSearch(e.target.value)}
+                  className="pl-8 text-xs h-8"
+                />
+              </div>
+
+              <Select value={annCategoryFilter} onValueChange={setAnnCategoryFilter}>
+                <SelectTrigger className="h-8 text-xs w-36">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="Platform Update">Platform Update</SelectItem>
+                  <SelectItem value="New Feature">New Feature</SelectItem>
+                  <SelectItem value="Internship Fair">Internship Fair</SelectItem>
+                  <SelectItem value="Maintenance">Maintenance</SelectItem>
+                  <SelectItem value="System Notice">System Notice</SelectItem>
+                  <SelectItem value="Career Tips">Career Tips</SelectItem>
+                  <SelectItem value="Event">Event</SelectItem>
+                  <SelectItem value="General">General</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={annPriorityFilter} onValueChange={setAnnPriorityFilter}>
+                <SelectTrigger className="h-8 text-xs w-32">
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priority</SelectItem>
+                  <SelectItem value="High">🔴 High</SelectItem>
+                  <SelectItem value="Medium">🟡 Medium</SelectItem>
+                  <SelectItem value="Low">🟢 Low</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={annStatusFilter} onValueChange={setAnnStatusFilter}>
+                <SelectTrigger className="h-8 text-xs w-32">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="Published">Published</SelectItem>
+                  <SelectItem value="Scheduled">Scheduled</SelectItem>
+                  <SelectItem value="Draft">Draft</SelectItem>
+                  <SelectItem value="Expired">Expired</SelectItem>
+                  <SelectItem value="Archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={annAudienceFilter} onValueChange={setAnnAudienceFilter}>
+                <SelectTrigger className="h-8 text-xs w-36">
+                  <SelectValue placeholder="Target Audience" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Audiences</SelectItem>
+                  <SelectItem value="Everyone">Everyone</SelectItem>
+                  <SelectItem value="Students Only">Students Only</SelectItem>
+                  <SelectItem value="Companies Only">Companies Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Dashboard Table */}
+            {adminAnnouncementsQ.isLoading ? (
+              <p className="text-center py-8 text-xs text-muted-foreground">Loading announcements...</p>
+            ) : filteredAdminAnnouncements.length === 0 ? (
+              <p className="text-center py-8 text-xs text-muted-foreground">No matching announcements found.</p>
+            ) : (
+              <div className="overflow-x-auto border rounded-xl">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Announcement Title & Category</TableHead>
+                      <TableHead>Target Audience</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Publish & Expiry Date</TableHead>
+                      <TableHead>Reads</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAdminAnnouncements.map((ann) => (
+                      <TableRow key={ann.id}>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="font-bold text-sm flex items-center gap-2">
+                              {ann.is_pinned && (
+                                <Badge className="bg-amber-500 text-white text-[10px] gap-1 px-1.5 py-0">
+                                  <Pin className="h-3 w-3 fill-white" /> Pinned
+                                </Badge>
+                              )}
+                              <span>{ann.title}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Badge variant="outline" className="text-[10px]">{ann.category}</Badge>
+                              <span>by {ann.created_by || "Admin"}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-[10px]">
+                            {ann.target_audience}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {ann.priority === "High" ? (
+                            <Badge className="bg-rose-500 text-white text-[10px]">🔴 High</Badge>
+                          ) : ann.priority === "Medium" ? (
+                            <Badge className="bg-amber-500 text-white text-[10px]">🟡 Medium</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px]">🟢 Low</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              ann.status === "Published"
+                                ? "secondary"
+                                : ann.status === "Scheduled"
+                                ? "outline"
+                                : "destructive"
+                            }
+                            className="capitalize text-[10px]"
+                          >
+                            {ann.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground font-mono">
+                          <div>Pub: {new Date(ann.publish_date).toLocaleDateString()}</div>
+                          {ann.expiry_date && <div>Exp: {new Date(ann.expiry_date).toLocaleDateString()}</div>}
+                        </TableCell>
+                        <TableCell className="text-xs font-semibold">
+                          {ann.read_count ?? 0} views
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className={`h-7 w-7 ${ann.is_pinned ? "text-amber-500 hover:bg-amber-500/10" : "text-muted-foreground"}`}
+                              onClick={() => pinAnnMutation.mutate(ann.id)}
+                              title={ann.is_pinned ? "Unpin Announcement" : "Pin Announcement (Max 3)"}
+                            >
+                              <Pin className={`h-3.5 w-3.5 ${ann.is_pinned ? "fill-amber-500" : ""}`} />
+                            </Button>
+
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-blue-500 hover:bg-blue-500/10"
+                              onClick={() => handleStartEditAnn(ann)}
+                              title="Edit Announcement"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </Button>
+
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-rose-500 hover:bg-rose-500/10"
+                              onClick={() => deleteAnnouncementMutation.mutate(ann.id)}
+                              title="Delete Announcement"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </Card>
         </TabsContent>
 
@@ -1494,6 +1775,195 @@ function AdminConsolePage() {
               Close Audit
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create / Edit Announcement Modal */}
+      <Dialog open={annModalOpen} onOpenChange={setAnnModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-sky-500" />
+              {editingAnn ? "Edit Platform Announcement" : "Publish New Announcement"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Configure announcement details, priority badges, category, publishing dates, and optional banner media.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveAnnouncement} className="space-y-4 py-2 text-xs">
+            <div>
+              <Label className="text-xs font-semibold">Announcement Title</Label>
+              <Input
+                placeholder="e.g. 🎓 National Internship Fair 2026 Registration Open"
+                value={annTitle}
+                onChange={(e) => setAnnTitle(e.target.value)}
+                className="mt-1 text-xs"
+                required
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label className="text-xs font-semibold">Category</Label>
+                <Select value={annCategory} onValueChange={(val: any) => setAnnCategory(val)}>
+                  <SelectTrigger className="mt-1 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Platform Update">Platform Update</SelectItem>
+                    <SelectItem value="New Feature">New Feature</SelectItem>
+                    <SelectItem value="Internship Fair">Internship Fair</SelectItem>
+                    <SelectItem value="Maintenance">Maintenance</SelectItem>
+                    <SelectItem value="System Notice">System Notice</SelectItem>
+                    <SelectItem value="Career Tips">Career Tips</SelectItem>
+                    <SelectItem value="Event">Event</SelectItem>
+                    <SelectItem value="General">General</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs font-semibold">Priority Level</Label>
+                <Select value={annPriority} onValueChange={(val: any) => setAnnPriority(val)}>
+                  <SelectTrigger className="mt-1 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="High">🔴 High Priority (First)</SelectItem>
+                    <SelectItem value="Medium">🟡 Medium Priority</SelectItem>
+                    <SelectItem value="Low">🟢 Low Priority</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label className="text-xs font-semibold">Target Audience</Label>
+                <Select value={annAudience} onValueChange={(val: any) => setAnnAudience(val)}>
+                  <SelectTrigger className="mt-1 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Everyone">Everyone (Students & Companies)</SelectItem>
+                    <SelectItem value="Students Only">Students Only</SelectItem>
+                    <SelectItem value="Companies Only">Companies Only</SelectItem>
+                    <SelectItem value="Admin Only">Admin Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs font-semibold">Status</Label>
+                <Select value={annStatus} onValueChange={(val: any) => setAnnStatus(val)}>
+                  <SelectTrigger className="mt-1 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Published">Published</SelectItem>
+                    <SelectItem value="Scheduled">Scheduled</SelectItem>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Expired">Expired</SelectItem>
+                    <SelectItem value="Archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label className="text-xs font-semibold">Publish Date (Automated Schedule)</Label>
+                <Input
+                  type="datetime-local"
+                  value={annPublishDate}
+                  onChange={(e) => setAnnPublishDate(e.target.value)}
+                  className="mt-1 text-xs"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-semibold">Expiry Date (Optional Auto-Expiration)</Label>
+                <Input
+                  type="datetime-local"
+                  value={annExpiryDate}
+                  onChange={(e) => setAnnExpiryDate(e.target.value)}
+                  className="mt-1 text-xs"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-semibold">Banner Image URL (Optional)</Label>
+              <Input
+                placeholder="https://images.unsplash.com/..."
+                value={annBannerImage}
+                onChange={(e) => setAnnBannerImage(e.target.value)}
+                className="mt-1 text-xs font-mono"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs font-semibold">Announcement Content (Markdown / Rich Text)</Label>
+              <Textarea
+                placeholder="Write full announcement content..."
+                value={annContent}
+                onChange={(e) => setAnnContent(e.target.value)}
+                rows={5}
+                className="mt-1 text-xs"
+                required
+              />
+            </div>
+
+            {/* Attachments section */}
+            <div className="p-3 bg-muted/40 rounded-xl space-y-2 border border-border">
+              <Label className="text-xs font-semibold block">Add File Attachments (Optional)</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="File Name (e.g. Schedule.pdf)"
+                  value={annAttachmentName}
+                  onChange={(e) => setAnnAttachmentName(e.target.value)}
+                  className="text-xs h-8"
+                />
+                <Input
+                  placeholder="Download URL"
+                  value={annAttachmentUrl}
+                  onChange={(e) => setAnnAttachmentUrl(e.target.value)}
+                  className="text-xs h-8"
+                />
+                <Button type="button" size="sm" variant="outline" className="h-8 text-xs shrink-0" onClick={handleAddAttachment}>
+                  Add File
+                </Button>
+              </div>
+              {annAttachmentsList.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {annAttachmentsList.map((att, i) => (
+                    <Badge key={i} variant="secondary" className="text-[10px] gap-1 px-2 py-0.5">
+                      {att.name}
+                      <X className="h-3 w-3 cursor-pointer text-muted-foreground hover:text-destructive" onClick={() => setAnnAttachmentsList(prev => prev.filter((_, idx) => idx !== i))} />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-xl border border-amber-500/20 bg-amber-500/5">
+              <div className="space-y-0.5">
+                <Label className="text-xs font-semibold">Pin Announcement to Top</Label>
+                <p className="text-[11px] text-muted-foreground">Pinned notices stay at the top of Student and Recruiter dashboards (Maximum 3).</p>
+              </div>
+              <Switch checked={annIsPinned} onCheckedChange={setAnnIsPinned} />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setAnnModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-sky-600 hover:bg-sky-700 text-white" disabled={createAnnMutation.isPending || updateAnnMutation.isPending}>
+                {editingAnn ? "Save Changes" : "Publish Announcement"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

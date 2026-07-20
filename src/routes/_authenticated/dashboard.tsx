@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { AnnouncementWidget } from "@/components/announcement-widget";
+
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Skilltern" }] }),
   component: Dashboard,
@@ -38,7 +40,8 @@ function Dashboard() {
   const apps = appsQ.data?.applications ?? [];
 
   return (
-    <div>
+    <div className="space-y-6">
+      <AnnouncementWidget userRole="student" />
       <PageHeader title={`Welcome back, ${firstName}`} description="Here's your internship readiness at a glance." />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

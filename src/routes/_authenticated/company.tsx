@@ -47,6 +47,7 @@ import { listCompanyApplications, updateApplicationStatus } from "@/lib/applicat
 import { getApplicantMatchDetail } from "@/lib/job-match.functions";
 import { getCompany } from "@/lib/companies.functions";
 import { CompanyLogo } from "@/components/company-logo";
+import { AnnouncementWidget } from "@/components/announcement-widget";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1040,6 +1041,7 @@ function CompanyDashboardPage() {
 
   return (
     <div className="space-y-8">
+      <AnnouncementWidget userRole="company" />
       {/* Upper Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-6">
         <div>

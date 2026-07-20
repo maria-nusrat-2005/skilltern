@@ -967,8 +967,8 @@ function CompanyDashboardPage() {
     const countMap: Record<string, number> = {};
     enrichedJobs.forEach(j => {
       if (Array.isArray(j.tech_stack)) {
-        j.tech_stack.forEach((s: string) => {
-          const key = s.trim();
+        j.tech_stack.forEach((s: any) => {
+          const key = String(s).trim();
           countMap[key] = (countMap[key] || 0) + 1;
         });
       }

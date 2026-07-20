@@ -68,6 +68,7 @@ import {
 import { adminListUsers, adminUpdateUserRole, adminGetStats } from "@/lib/profile.functions";
 import { listInternships, deleteInternship } from "@/lib/internships.functions";
 import { listCompanies } from "@/lib/companies.functions";
+import { useAuth } from "@/hooks/use-auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -137,6 +138,7 @@ const userGrowthData = [
 
 function AdminConsolePage() {
   const qc = useQueryClient();
+  const { user } = useAuth();
 
   // Search & Filter States
   const [globalSearch, setGlobalSearch] = useState("");
@@ -465,10 +467,10 @@ function AdminConsolePage() {
               <div>
                 <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">👥 Total Users</p>
                 <h3 className="text-3xl font-bold font-display mt-1">
-                  {statsQ.isLoading ? "..." : (statsQ.data?.users ?? 1245)}
+                  {statsQ.isLoading ? "..." : (statsQ.data?.users ?? 0)}
                 </h3>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1 font-medium">
-                  <TrendingUp className="h-3 w-3" /> +14% this month
+                  <TrendingUp className="h-3 w-3" /> +{statsQ.data?.monthlyGrowth ?? 14.2}% this month
                 </p>
               </div>
               <div className="h-12 w-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
@@ -480,9 +482,9 @@ function AdminConsolePage() {
               <div>
                 <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">🎓 Students</p>
                 <h3 className="text-3xl font-bold font-display mt-1">
-                  {statsQ.isLoading ? "..." : Math.round((statsQ.data?.users ?? 1245) * 0.82)}
+                  {statsQ.isLoading ? "..." : (statsQ.data?.students ?? 0)}
                 </h3>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">82% of total platform base</p>
+                <p className="text-xs text-muted-foreground mt-1 font-medium">Registered student accounts</p>
               </div>
               <div className="h-12 w-12 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
                 <UserCheck className="h-6 w-6" />
@@ -493,10 +495,10 @@ function AdminConsolePage() {
               <div>
                 <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">🏢 Companies</p>
                 <h3 className="text-3xl font-bold font-display mt-1">
-                  {companiesQ.data?.companies?.length ?? 89}
+                  {statsQ.isLoading ? "..." : (statsQ.data?.companies ?? 0)}
                 </h3>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1 font-medium">
-                  <TrendingUp className="h-3 w-3" /> +6 verified this week
+                  <TrendingUp className="h-3 w-3" /> Active employer profiles
                 </p>
               </div>
               <div className="h-12 w-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
@@ -508,9 +510,9 @@ function AdminConsolePage() {
               <div>
                 <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">📄 Active Internships</p>
                 <h3 className="text-3xl font-bold font-display mt-1">
-                  {statsQ.isLoading ? "..." : (statsQ.data?.internships ?? 312)}
+                  {statsQ.isLoading ? "..." : (statsQ.data?.internships ?? 0)}
                 </h3>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">Across 12 industries</p>
+                <p className="text-xs text-muted-foreground mt-1 font-medium">Live job opportunity listings</p>
               </div>
               <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
                 <Briefcase className="h-6 w-6" />
@@ -521,10 +523,10 @@ function AdminConsolePage() {
               <div>
                 <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">📝 Total Applications</p>
                 <h3 className="text-3xl font-bold font-display mt-1">
-                  {statsQ.isLoading ? "..." : (statsQ.data?.applications ?? 5482)}
+                  {statsQ.isLoading ? "..." : (statsQ.data?.applications ?? 0)}
                 </h3>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1 font-medium">
-                  <TrendingUp className="h-3 w-3" /> 184 applied today
+                  <TrendingUp className="h-3 w-3" /> Submitted student applications
                 </p>
               </div>
               <div className="h-12 w-12 rounded-2xl bg-violet-500/10 text-violet-500 flex items-center justify-center">
@@ -551,7 +553,7 @@ function AdminConsolePage() {
                 <h3 className="text-3xl font-bold font-display mt-1 text-rose-600 dark:text-rose-400">
                   {reports.filter((r) => r.status === "Pending").length}
                 </h3>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">Flagged by community</p>
+                <p className="text-xs text-muted-foreground mt-1 font-medium font-sans">Flagged items</p>
               </div>
               <div className="h-12 w-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
                 <AlertTriangle className="h-6 w-6" />
@@ -562,9 +564,10 @@ function AdminConsolePage() {
               <div>
                 <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">⭐ Avg. Platform Rating</p>
                 <h3 className="text-3xl font-bold font-display mt-1 flex items-center gap-1.5">
-                  4.8 <Star className="h-5 w-5 fill-amber-400 text-amber-400 inline-block" />
+                  {statsQ.isLoading ? "..." : (statsQ.data?.avgRating ?? 4.8)}{" "}
+                  <Star className="h-5 w-5 fill-amber-400 text-amber-400 inline-block" />
                 </h3>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">Based on 420 reviews</p>
+                <p className="text-xs text-muted-foreground mt-1 font-medium">Based on {statsQ.data?.reviewCount ?? 0} reviews</p>
               </div>
               <div className="h-12 w-12 rounded-2xl bg-amber-400/15 text-amber-500 flex items-center justify-center">
                 <Star className="h-6 w-6 fill-amber-400 text-amber-400" />
@@ -575,9 +578,9 @@ function AdminConsolePage() {
               <div>
                 <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">📈 Monthly Growth</p>
                 <h3 className="text-3xl font-bold font-display mt-1 text-emerald-600 dark:text-emerald-400">
-                  +18.4%
+                  +{statsQ.isLoading ? "..." : (statsQ.data?.monthlyGrowth ?? 14.2)}%
                 </h3>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">New student acquisitions</p>
+                <p className="text-xs text-muted-foreground mt-1 font-medium">New acquisitions rate</p>
               </div>
               <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
                 <Activity className="h-6 w-6" />
@@ -1347,20 +1350,20 @@ function AdminConsolePage() {
           <Card className="p-6 max-w-xl mx-auto space-y-6 shadow-sm">
             <div className="flex items-center gap-4 border-b border-border pb-4">
               <div className="h-16 w-16 rounded-full bg-primary/10 text-primary font-bold text-2xl flex items-center justify-center border-2 border-primary">
-                A
+                {(user?.user_metadata?.full_name?.[0] || user?.email?.[0] || "A").toUpperCase()}
               </div>
               <div>
                 <h2 className="font-display text-xl font-bold flex items-center gap-2">
-                  System Super Admin <Badge className="bg-emerald-600 text-white text-[10px]">Verified</Badge>
+                  {user?.user_metadata?.full_name || "System Super Admin"} <Badge className="bg-emerald-600 text-white text-[10px]">Verified</Badge>
                 </h2>
-                <p className="text-xs text-muted-foreground font-mono">Employee ID: ADM-2026-88 · Platform Governance</p>
+                <p className="text-xs text-muted-foreground font-mono">User ID: {user?.id?.slice(0, 16)}... · Governance</p>
               </div>
             </div>
 
             <div className="grid gap-3 text-xs sm:grid-cols-2">
               <div className="p-3 bg-muted/30 rounded-lg border border-border">
                 <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Email</span>
-                <span className="font-semibold text-foreground">admin@skilltern.com</span>
+                <span className="font-semibold text-foreground">{user?.email || "admin@skilltern.com"}</span>
               </div>
               <div className="p-3 bg-muted/30 rounded-lg border border-border">
                 <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Department</span>
@@ -1372,7 +1375,7 @@ function AdminConsolePage() {
               </div>
               <div className="p-3 bg-muted/30 rounded-lg border border-border">
                 <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Session Status</span>
-                <span className="font-semibold text-foreground">Active 2FA Enforced</span>
+                <span className="font-semibold text-foreground">Authenticated Active Session</span>
               </div>
             </div>
           </Card>

@@ -30,6 +30,7 @@ import { getSimilarInternships } from "@/lib/discovery.functions";
 import { saveApplication } from "@/lib/applications.functions";
 import { compareResumeToJob, generateApplicationKit } from "@/lib/job-match.functions";
 import { getDomainStipend, parseStipend } from "@/lib/insights.functions";
+import { getStudentProfileCv } from "@/lib/profile.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -73,8 +74,22 @@ function InternshipDetail() {
   
   // States for uploads
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
+  const [cvSource, setCvSource] = useState<"profile" | "upload">("profile");
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  const profileCvQ = useQuery({
+    queryKey: ["student-profile-cv", user?.id],
+    queryFn: () => getStudentProfileCv(),
+    enabled: !!user?.id,
+  });
+  const profileCv = profileCvQ.data;
+
+  useEffect(() => {
+    if (isApplyModalOpen) {
+      setCvSource(profileCv?.cvUrl ? "profile" : "upload");
+    }
+  }, [isApplyModalOpen, profileCv?.cvUrl]);
 
   const q = useQuery({ queryKey: ["internship", id], queryFn: () => getInternship({ data: { id } }) });
   const myAppQ = useQuery({
@@ -140,26 +155,36 @@ function InternshipDetail() {
       toast.error("Please sign in first.");
       return;
     }
-    if (!cvFile) {
-      toast.error("Please select a CV/Resume to upload.");
-      return;
-    }
 
     setUploading(true);
     try {
-      //  Upload CV
-      const cvPath = `${user.id}/${Date.now()}-cv-${cvFile.name}`;
-      const { error: cvErr } = await supabase.storage.from("resumes").upload(cvPath, cvFile);
-      if (cvErr) throw cvErr;
-      const cvUrl = supabase.storage.from("resumes").getPublicUrl(cvPath).data.publicUrl;
+      let finalCvUrl: string | null = null;
 
-      // 4. Save application
+      if (cvSource === "profile") {
+        if (!profileCv?.cvUrl) {
+          toast.error("No saved Profile CV found. Please upload a CV file.");
+          setUploading(false);
+          return;
+        }
+        finalCvUrl = profileCv.cvUrl;
+      } else {
+        if (!cvFile) {
+          toast.error("Please select a CV/Resume to upload.");
+          setUploading(false);
+          return;
+        }
+        const cvPath = `${user.id}/${Date.now()}-cv-${cvFile.name}`;
+        const { error: cvErr } = await supabase.storage.from("resumes").upload(cvPath, cvFile);
+        if (cvErr) throw cvErr;
+        finalCvUrl = supabase.storage.from("resumes").getPublicUrl(cvPath).data.publicUrl;
+      }
+
       await save.mutateAsync({
         status: "applied",
-        cvUrl,
+        cvUrl: finalCvUrl,
       });
     } catch (err: any) {
-      toast.error(err.message || "Failed to upload CV.");
+      toast.error(err.message || "Failed to submit application.");
     } finally {
       setUploading(false);
     }
@@ -643,32 +668,147 @@ function InternshipDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Submit Application Dialog with Document Uploads */}
+      {/* Submit Application Dialog with Document Uploads & Profile CV Choice */}
       <Dialog open={isApplyModalOpen} onOpenChange={setIsApplyModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <form onSubmit={handleApplySubmit} className="space-y-4">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Briefcase className="h-5 w-5 text-primary" /> Apply for {job.title}
               </DialogTitle>
               <DialogDescription>
-                Please upload the required documents to submit your application. Only PDF format is accepted.
+                Choose how you want to attach your CV/Resume to submit your application.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="cv-upload" className="text-sm font-semibold flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-primary" /> CV / Resume (Required)
-                </Label>
-                <Input
-                  id="cv-upload"
-                  type="file"
-                  accept=".pdf"
-                  onChange={(e) => setCvFile(e.target.files?.[0] ?? null)}
-                  required
-                  disabled={uploading}
-                />
+            <div className="space-y-3 py-1">
+              <Label className="text-sm font-semibold flex items-center gap-1.5">
+                <FileText className="h-4 w-4 text-primary" /> CV / Resume Option
+              </Label>
+
+              <div className="grid gap-3">
+                {/* Profile CV Option */}
+                <div
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                    cvSource === "profile"
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border hover:bg-muted/40"
+                  }`}
+                  onClick={() => setCvSource("profile")}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        id="cv-source-profile"
+                        name="cvSource"
+                        checked={cvSource === "profile"}
+                        onChange={() => setCvSource("profile")}
+                        className="mt-0.5 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                      />
+                      <div>
+                        <Label htmlFor="cv-source-profile" className="font-semibold text-sm cursor-pointer block">
+                          Use CV from Profile
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {profileCv?.cvUrl
+                            ? "Use your saved profile resume without uploading a new file."
+                            : "No saved CV found on your profile."}
+                        </p>
+                      </div>
+                    </div>
+                    {profileCv?.cvUrl && (
+                      <Badge variant="secondary" className="text-[10px] py-0 px-1.5 shrink-0">
+                        Profile CV
+                      </Badge>
+                    )}
+                  </div>
+
+                  {cvSource === "profile" && profileCv?.cvUrl && (
+                    <div className="mt-3 pt-3 border-t border-border/60 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-4 w-4 text-primary shrink-0" />
+                        <span className="text-xs font-medium truncate">{profileCv.fileName}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs gap-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(profileCv.cvUrl);
+                            toast.success("Profile CV link copied!");
+                          }}
+                        >
+                          <Copy className="h-3 w-3" /> Copy Link
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs gap-1"
+                          asChild
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <a href={profileCv.cvUrl} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-3 w-3" /> View
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {cvSource === "profile" && !profileCv?.cvUrl && (
+                    <div className="mt-2 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                      ⚠️ No saved profile CV. Please select "Upload New CV" below or upload a CV in your profile.
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload New File Option */}
+                <div
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                    cvSource === "upload"
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border hover:bg-muted/40"
+                  }`}
+                  onClick={() => setCvSource("upload")}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      id="cv-source-upload"
+                      name="cvSource"
+                      checked={cvSource === "upload"}
+                      onChange={() => setCvSource("upload")}
+                      className="mt-0.5 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                    />
+                    <div>
+                      <Label htmlFor="cv-source-upload" className="font-semibold text-sm cursor-pointer block">
+                        Upload New CV (PDF)
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Upload a specific CV file for this internship application.
+                      </p>
+                    </div>
+                  </div>
+
+                  {cvSource === "upload" && (
+                    <div className="mt-3 pt-3 border-t border-border/60">
+                      <Input
+                        id="cv-upload"
+                        type="file"
+                        accept=".pdf"
+                        onChange={(e) => setCvFile(e.target.files?.[0] ?? null)}
+                        required={cvSource === "upload"}
+                        disabled={uploading}
+                        className="text-xs"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -685,7 +825,7 @@ function InternshipDetail() {
                 {uploading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Uploading...
+                    Submitting...
                   </>
                 ) : (
                   "Submit Application"

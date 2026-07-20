@@ -278,3 +278,104 @@ export function serializeCompanyBio(
 ) {
   return `${cleanBio.trim()}\n\n---METADATA---\n${JSON.stringify(meta)}`;
 }
+
+export const getStudentProfileCv = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+
+    // 1. Check resumes table for active or recent resume uploads
+    const { data: resumes } = await supabase
+      .from("resumes")
+      .select("id, file_name, file_path, is_active, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (resumes && resumes.length > 0) {
+      const active =
+        resumes.find((r) => r.is_active && r.file_path && !r.file_path.startsWith("paste/")) ||
+        resumes.find((r) => r.file_path && !r.file_path.startsWith("paste/"));
+
+      if (active) {
+        let cvUrl = active.file_path;
+        if (!cvUrl.startsWith("http://") && !cvUrl.startsWith("https://")) {
+          const { data } = supabase.storage.from("resumes").getPublicUrl(active.file_path);
+          cvUrl = data.publicUrl;
+        }
+        return {
+          cvUrl,
+          fileName: active.file_name || "Profile_CV.pdf",
+          source: "profile_resume" as const,
+          updatedAt: active.created_at,
+        };
+      }
+    }
+
+    // 2. Fallback check from previous applications
+    const { data: app } = await supabase
+      .from("applications")
+      .select("cv_url, updated_at")
+      .eq("user_id", userId)
+      .not("cv_url", "is", null)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (app?.cv_url) {
+      return {
+        cvUrl: app.cv_url,
+        fileName: "Profile_CV.pdf",
+        source: "previous_application" as const,
+        updatedAt: app.updated_at,
+      };
+    }
+
+    return null;
+  });
+
+export const uploadProfileCv = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { fileName: string; fileBase64: string; mimeType: string }) => {
+    if (!d?.fileBase64 || !d?.fileName) {
+      throw new Error("CV file data is required.");
+    }
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    const bin = Uint8Array.from(atob(data.fileBase64), (c) => c.charCodeAt(0));
+    const cleanExt = data.fileName.split(".").pop() || "pdf";
+    const filePath = `${userId}/${Date.now()}-profile-cv.${cleanExt}`;
+
+    const { error: uploadErr } = await supabase.storage.from("resumes").upload(filePath, bin, {
+      contentType: data.mimeType || "application/pdf",
+      upsert: true,
+    });
+    if (uploadErr) throw new Error(uploadErr.message);
+
+    const { data: pubUrlData } = supabase.storage.from("resumes").getPublicUrl(filePath);
+    const cvUrl = pubUrlData.publicUrl;
+
+    // Deactivate previous active resumes
+    await supabase.from("resumes").update({ is_active: false }).eq("user_id", userId);
+
+    // Insert new active resume record
+    const { data: inserted, error: rErr } = await supabase
+      .from("resumes")
+      .insert({
+        user_id: userId,
+        file_name: data.fileName,
+        file_path: filePath,
+        is_active: true,
+        parsed: false,
+        analysis_status: "pending",
+      })
+      .select("*")
+      .single();
+
+    if (rErr) throw new Error(rErr.message);
+
+    return { cvUrl, fileName: data.fileName, resumeId: inserted.id };
+  });
+

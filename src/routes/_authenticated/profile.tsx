@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { User, Settings, Github, CheckCircle2, Circle, Star, Loader2, Sparkles } from "lucide-react";
-import { getProfileData, updateProfile, savePreferences } from "@/lib/profile.functions";
+import { User, Settings, Github, CheckCircle2, Circle, Star, Loader2, Sparkles, FileText, Copy, ExternalLink, Upload } from "lucide-react";
+import { getProfileData, updateProfile, savePreferences, getStudentProfileCv, uploadProfileCv } from "@/lib/profile.functions";
 import { importGitHub } from "@/lib/github.functions";
 import { PageHeader } from "@/components/dashboard-bits";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const res = reader.result as string;
+      const comma = res.indexOf(",");
+      resolve(comma === -1 ? res : res.slice(comma + 1));
+    };
+    reader.onerror = () => reject(new Error("Could not read file."));
+    reader.readAsDataURL(file);
+  });
+}
+
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({ meta: [{ title: "Profile — Skilltern" }] }),
   component: ProfilePage,
@@ -33,6 +46,23 @@ function asArr(v: unknown): string[] {
 function ProfilePage() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["profile"], queryFn: () => getProfileData() });
+  const profileCvQ = useQuery({ queryKey: ["student-profile-cv"], queryFn: () => getStudentProfileCv() });
+  const profileCv = profileCvQ.data;
+
+  const uploadCvM = useMutation({
+    mutationFn: async (file: File) => {
+      const fileBase64 = await fileToBase64(file);
+      return uploadProfileCv({
+        data: { fileName: file.name, fileBase64, mimeType: file.type || "application/pdf" },
+      });
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["student-profile-cv"] });
+      qc.invalidateQueries({ queryKey: ["resume-history"] });
+      toast.success(`Profile CV updated (${data.fileName})`);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to upload CV"),
+  });
 
   const [profile, setProfile] = useState({
     full_name: "",
@@ -178,6 +208,99 @@ function ProfilePage() {
             </span>
           ))}
         </div>
+      </Card>
+
+      <Card className="mb-6 p-6">
+        <h2 className="flex items-center gap-2 font-display font-semibold">
+          <FileText className="h-4.5 w-4.5 text-primary" /> Profile CV / Resume
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Your saved CV is automatically attached when applying for internships — no need to re-upload every time.
+        </p>
+
+        {profileCv ? (
+          <div className="mt-4 rounded-xl border border-border bg-card p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="p-2.5 bg-primary/10 text-primary rounded-lg shrink-0">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm truncate">{profileCv.fileName}</p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                    <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-normal">Active Profile CV</Badge>
+                    {profileCv.updatedAt && `Uploaded ${new Date(profileCv.updatedAt).toLocaleDateString()}`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-xs"
+                  onClick={() => {
+                    navigator.clipboard.writeText(profileCv.cvUrl);
+                    toast.success("CV link copied to clipboard!");
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" /> Copy CV Link
+                </Button>
+                <Button size="sm" variant="outline" asChild className="gap-1.5 text-xs">
+                  <a href={profileCv.cvUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5" /> View PDF
+                  </a>
+                </Button>
+                <Label
+                  htmlFor="profile-cv-replace"
+                  className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-input transition-colors"
+                >
+                  {uploadCvM.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                  Replace CV
+                </Label>
+                <input
+                  id="profile-cv-replace"
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadCvM.mutate(f);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-xl border border-dashed border-border p-6 text-center space-y-3">
+            <div className="mx-auto w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">No Profile CV uploaded yet</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Upload a PDF to apply to internships seamlessly.</p>
+            </div>
+            <div className="flex justify-center">
+              <Label
+                htmlFor="profile-cv-upload"
+                className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-colors"
+              >
+                {uploadCvM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                Upload Profile CV (PDF)
+              </Label>
+              <input
+                id="profile-cv-upload"
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadCvM.mutate(f);
+                }}
+              />
+            </div>
+          </div>
+        )}
       </Card>
 
       <Card className="mb-6 p-6">

@@ -68,6 +68,11 @@ import {
 import { adminListUsers, adminUpdateUserRole, adminGetStats } from "@/lib/profile.functions";
 import { listInternships, deleteInternship } from "@/lib/internships.functions";
 import { listCompanies } from "@/lib/companies.functions";
+import {
+  sendBroadcastAnnouncement,
+  getActiveAnnouncements,
+  deleteAnnouncement,
+} from "@/lib/announcements.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -266,6 +271,10 @@ function AdminConsolePage() {
     queryFn: () => listInternships({ data: { search: jobSearch, pageSize: 100 } }),
   });
   const companiesQ = useQuery({ queryKey: ["admin-companies"], queryFn: () => listCompanies() });
+  const activeAnnouncementsQ = useQuery({
+    queryKey: ["active-announcements"],
+    queryFn: () => getActiveAnnouncements(),
+  });
 
   // Mutations
   const updateRoleMutation = useMutation({
@@ -290,6 +299,31 @@ function AdminConsolePage() {
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to remove listing.");
+    },
+  });
+
+  const sendBroadcastMutation = useMutation({
+    mutationFn: (data: { target: "all" | "students" | "companies"; title: string; body: string }) =>
+      sendBroadcastAnnouncement({ data }),
+    onSuccess: (ann) => {
+      qc.invalidateQueries({ queryKey: ["active-announcements"] });
+      toast.success(`Announcement broadcasted to ${ann.target.toUpperCase()}!`);
+      setBroadcastTitle("");
+      setBroadcastBody("");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to broadcast announcement.");
+    },
+  });
+
+  const deleteAnnouncementMutation = useMutation({
+    mutationFn: (id: string) => deleteAnnouncement({ data: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["active-announcements"] });
+      toast.success("Broadcast announcement removed.");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to remove announcement.");
     },
   });
 
@@ -346,13 +380,15 @@ function AdminConsolePage() {
 
   const handleSendBroadcast = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!broadcastTitle || !broadcastBody) {
-      toast.error("Please enter both title and message body.");
+    if (!broadcastTitle.trim() || !broadcastBody.trim()) {
+      toast.error("Please enter both title and message content.");
       return;
     }
-    toast.success(`Broadcast message sent to ${broadcastTarget.toUpperCase()}!`);
-    setBroadcastTitle("");
-    setBroadcastBody("");
+    sendBroadcastMutation.mutate({
+      target: broadcastTarget as "all" | "students" | "companies",
+      title: broadcastTitle,
+      body: broadcastBody,
+    });
   };
 
   const handleAddCategory = () => {
@@ -1235,10 +1271,54 @@ function AdminConsolePage() {
                 />
               </div>
 
-              <Button type="submit" className="w-full gap-2 bg-sky-600 hover:bg-sky-700 text-white">
-                <Send className="h-4 w-4" /> Send Announcement
+              <Button
+                type="submit"
+                className="w-full gap-2 bg-sky-600 hover:bg-sky-700 text-white"
+                disabled={sendBroadcastMutation.isPending}
+              >
+                <Send className="h-4 w-4" /> {sendBroadcastMutation.isPending ? "Sending..." : "Send Announcement"}
               </Button>
             </form>
+
+            {/* Active Live Broadcasts List */}
+            <div className="pt-4 border-t border-border space-y-3">
+              <h3 className="font-display font-bold text-sm flex items-center justify-between">
+                <span>Active Live Broadcasts</span>
+                <Badge variant="outline" className="text-[10px]">
+                  {activeAnnouncementsQ.data?.length ?? 0} Active
+                </Badge>
+              </h3>
+              {(activeAnnouncementsQ.data ?? []).length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">No active announcements currently broadcasted.</p>
+              ) : (
+                <div className="space-y-2">
+                  {(activeAnnouncementsQ.data ?? []).map((ann) => (
+                    <div key={ann.id} className="p-3 bg-muted/40 rounded-xl border border-border flex items-start justify-between gap-3">
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center gap-2 font-bold text-foreground">
+                          <Badge className="bg-sky-600 text-white text-[10px] uppercase">{ann.target}</Badge>
+                          {ann.title}
+                        </div>
+                        <p className="text-muted-foreground">{ann.body}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">
+                          {new Date(ann.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-rose-500 hover:bg-rose-500/10 shrink-0"
+                        onClick={() => deleteAnnouncementMutation.mutate(ann.id)}
+                        disabled={deleteAnnouncementMutation.isPending}
+                        title="Delete Announcement"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </Card>
         </TabsContent>
 

@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { getProfileData } from "@/lib/profile.functions";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AnnouncementBanner } from "@/components/announcement-banner";
 
 const studentNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -154,6 +155,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </nav>
 
       <main className="pb-20 lg:pb-0 lg:pl-64">
+        <AnnouncementBanner />
         {/* Desktop top header bar */}
         <header className="sticky top-0 z-20 hidden lg:flex h-14 items-center justify-end border-b border-border bg-background/95 px-8 backdrop-blur">
           <ThemeToggle />
